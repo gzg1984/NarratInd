@@ -1,0 +1,27 @@
+{
+  "name": "Narrat-Ind-web",
+  "version": "1.0.0",
+  "description": "A web of Narrative Industry.",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "live-server src",
+    "build": "webpack --mode production",
+    "dev": "webpack --mode development"
+  },
+  "keywords": [
+    "Narrative",
+    "Industry",
+    "game",
+    "web"
+  ],
+  "author": "Zhigang Gao",
+  "dependencies": {
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2"
+  },
+  "devDependencies": {
+    "webpack": "^5.64.4",
+    "webpack-cli": "^4.9.1",
+    "live-server": "^1.2.1"
+  }
+}
