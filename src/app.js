@@ -107,8 +107,8 @@ function renderComponents() {
     // 渲染信息栏（悬浮在地图左下角）
     infoBar = new InfoBar('info-bar-container');
 
-    // 渲染事件栏（悬浮在地图上方，需要在 infoBar 之后初始化）
-    eventBar = new EventBar('event-bar-container', infoBar, getStarName);
+    // 渲染事件栏（悬浮在地图上方，需要在 mapArea 和 infoBar 之后初始化）
+    eventBar = new EventBar('event-bar-container', infoBar, getStarName, mapArea);
 
     // 渲染技能树
     const skillTree = document.getElementById('skill-tree');

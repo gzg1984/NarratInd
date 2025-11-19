@@ -1,9 +1,10 @@
 // EventBar.js - 事件栏组件（悬浮在地图上方，可折叠）
 export class EventBar {
-  constructor(containerId, infoBar, getStarNameFn) {
+  constructor(containerId, infoBar, getStarNameFn, mapArea) {
     this.container = document.getElementById(containerId);
     this.infoBar = infoBar;
     this.getStarName = getStarNameFn;
+    this.mapArea = mapArea;
     this.eventTimer = null;
     this.eventList = [
       { text: '"你的明星"的信徒自发地传播，扩大的影响。', believers: 10 },
@@ -111,6 +112,11 @@ export class EventBar {
         currentStats.deaths,
         currentStats.cured
       );
+    }
+    
+    // 随机感染地图区域（让地区变白）
+    if (this.mapArea) {
+      this.mapArea.infectRandomRegion();
     }
   }
 
