@@ -17,6 +17,7 @@ export class MapArea {
     
     // 使用 img 标签加载 SVG，确保完整显示
     this.container.innerHTML = `
+      <div id="event-bar-container"></div>
       <img id="world-map-svg" src="assets/world.svg" alt="世界地图" style="width:100%;height:auto;display:block;max-width:100%;">
       <div id="info-bar-container"></div>
     `;
