@@ -2,25 +2,32 @@
 import { MapArea } from './components/MapArea.js';
 import { InfoBar } from './components/InfoBar.js';
 import { EventBar } from './components/EventBar.js';
+import { SkillTree } from './components/SkillTree.js';
 import { StorageManager } from './utils/storage.js';
+import { GameState } from './utils/gameState.js';
 
 // 全局组件实例
 let mapArea;
 let infoBar;
 let eventBar;
+let skillTree;
 let storage;
+let gameState;
 
 document.addEventListener('DOMContentLoaded', () => {
     // 初始化应用程序
     initApp();
 });
 
-async function initApp() {
+function initApp() {
     // 初始化存储管理器
     storage = new StorageManager();
     
-    // 检查是否需要输入明星名字
-    await checkAndRequestStarName();
+    // 初始化游戏状态
+    gameState = new GameState();
+    
+    // 检查是否需要输入明星名字（必须在渲染组件前完成）
+    checkAndRequestStarName();
     
     // 渲染组件
     renderComponents();
@@ -30,7 +37,7 @@ async function initApp() {
 }
 
 // 检查并请求明星名字
-async function checkAndRequestStarName() {
+function checkAndRequestStarName() {
     if (!storage.hasCache()) {
         const starName = prompt('欢迎来到叙事工业！\n请输入你的明星的名字：');
         
@@ -54,6 +61,11 @@ export function getStarName() {
 // 获取事件栏实例（供其他组件修改事件列表）
 export function getEventBar() {
     return eventBar;
+}
+
+// 获取技能树实例（供其他组件访问）
+export function getSkillTree() {
+    return skillTree;
 }
 
 function setupEventListeners() {
@@ -101,19 +113,28 @@ function handleEventButtonClick() {
 }
 
 function renderComponents() {
-    // 渲染地图区域
-    mapArea = new MapArea('map-area');
+    // 渲染地图区域（传入游戏状态）
+    mapArea = new MapArea('map-area', gameState);
     
     // 渲染信息栏（悬浮在地图左下角）
     infoBar = new InfoBar('info-bar-container');
 
-    // 渲染事件栏（悬浮在地图上方，需要在 mapArea 和 infoBar 之后初始化）
-    eventBar = new EventBar('event-bar-container', infoBar, getStarName, mapArea);
+    // 渲染事件栏（悬浮在地图上方，传入游戏状态）
+    eventBar = new EventBar('event-bar-container', infoBar, getStarName, mapArea, gameState);
 
     // 渲染技能树
-    const skillTree = document.getElementById('skill-tree');
-    if (skillTree) {
-        // 这里可以调用技能树组件的渲染函数
-        skillTree.innerHTML = '<h3>技能树</h3><p>技能树加载中...</p>';
-    }
+    skillTree = new SkillTree('skill-tree', gameState);
+    
+    // 设置地图点击开始游戏的回调
+    mapArea.setGameStartCallback((countryId) => {
+        eventBar.showGameStartEvent(countryId);
+    });
+    
+    // 设置胜利回调
+    gameState.setVictoryCallback(() => {
+        eventBar.showVictoryEvent();
+    });
+    
+    // 将 skillTree 暴露给全局，方便其他组件访问
+    window.skillTree = skillTree;
 }

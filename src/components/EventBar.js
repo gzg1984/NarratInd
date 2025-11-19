@@ -1,20 +1,18 @@
 // EventBar.js - 事件栏组件（悬浮在地图上方，可折叠）
 export class EventBar {
-  constructor(containerId, infoBar, getStarNameFn, mapArea) {
+  constructor(containerId, infoBar, getStarNameFn, mapArea, gameState) {
     this.container = document.getElementById(containerId);
     this.infoBar = infoBar;
     this.getStarName = getStarNameFn;
     this.mapArea = mapArea;
+    this.gameState = gameState;
     this.eventTimer = null;
-    this.eventList = [
-      { text: '"你的明星"的信徒自发地传播，扩大的影响。', believers: 10 },
-      { text: '"你的明星"吸引了一部分对现状不满的人。', believers: 10 },
-      { text: '"你的明星"真的帮助到了某些人。', believers: 10 }
-    ];
+    this.eventTypes = ['self_spread', 'attract_dissatisfied', 'real_help'];
     this.eventHistory = [];
     this.maxHistoryLength = 10; // 最多显示10条历史
     this.isExpanded = false; // 是否展开
     this.latestEvent = null; // 最新事件
+    this.periodEvents = []; // 周期内的所有事件
     this.init();
   }
 
@@ -22,6 +20,61 @@ export class EventBar {
     this.render();
     this.setupEventListeners();
     this.startEventLoop();
+    this.showInitialPrompt();
+  }
+
+  // 显示初始提示
+  showInitialPrompt() {
+    if (!this.gameState.isStarted()) {
+      const starName = this.getStarName();
+      const promptText = `欢迎来到叙事工业！点击世界地图上的任意国家，开始传播"${starName}"的观念...`;
+      
+      const notificationText = document.getElementById('event-text');
+      if (notificationText) {
+        notificationText.textContent = promptText;
+        notificationText.style.color = '#ffd700';
+      }
+    }
+  }
+
+  // 显示游戏开始事件
+  showGameStartEvent(countryId) {
+    const starName = this.getStarName();
+    const startText = `"${starName}"的观念开始在"${countryId}"传播！`;
+    
+    this.addEventToHistory(startText, 100, countryId);
+    
+    // 重置通知文本颜色
+    const notificationText = document.getElementById('event-text');
+    if (notificationText) {
+      notificationText.style.color = '#ecf0f1';
+    }
+  }
+
+  // 显示胜利事件
+  showVictoryEvent() {
+    const starName = this.getStarName();
+    
+    // 动态导入胜利消息
+    import('../data/victoryMessages.js').then(module => {
+      const victoryMessage = module.getRandomVictoryMessage(starName);
+      
+      this.addEventToHistory(victoryMessage, 0, 'GLOBAL');
+      
+      // 高亮显示胜利消息
+      const notificationText = document.getElementById('event-text');
+      if (notificationText) {
+        notificationText.textContent = victoryMessage;
+        notificationText.style.color = '#ffd700';
+        notificationText.style.fontWeight = 'bold';
+      }
+      
+      // 停止事件循环
+      if (this.eventTimer) {
+        clearInterval(this.eventTimer);
+        this.eventTimer = null;
+      }
+    });
   }
 
   render() {
@@ -80,7 +133,9 @@ export class EventBar {
   // 开始事件循环
   startEventLoop() {
     this.eventTimer = setInterval(() => {
-      this.triggerRandomEvent();
+      if (this.gameState.isStarted()) {
+        this.triggerPeriodEvents();
+      }
     }, 2000); // 每2秒触发一次
   }
 
@@ -92,36 +147,68 @@ export class EventBar {
     }
   }
 
-  // 触发随机事件
-  triggerRandomEvent() {
-    const randomIndex = Math.floor(Math.random() * this.eventList.length);
-    const event = this.eventList[randomIndex];
+  // 触发周期内所有国家的事件
+  triggerPeriodEvents() {
+    this.periodEvents = [];
     
-    // 获取明星名字并替换
-    const starName = this.getStarName();
-    const eventText = event.text.replace('"你的明星"', `"${starName}"`);
+    // 获取所有已感染的国家
+    const infectedCountries = this.gameState.getInfectedCountries();
     
-    // 添加到历史记录
-    this.addEventToHistory(eventText, event.believers);
+    // 每个国家随机触发一个事件
+    infectedCountries.forEach(country => {
+      const randomEventType = this.eventTypes[Math.floor(Math.random() * this.eventTypes.length)];
+      const eventResult = this.gameState.triggerEvent(country.id, randomEventType);
+      
+      if (eventResult) {
+        this.periodEvents.push(eventResult);
+      }
+    });
     
-    // 更新信徒数量
-    if (this.infoBar) {
-      const currentStats = this.infoBar.getStats();
-      this.infoBar.updateStats(
-        currentStats.infected + event.believers,
-        currentStats.deaths,
-        currentStats.cured
-      );
+    // 更新地图视觉
+    if (this.mapArea) {
+      this.mapArea.updateAllInfectedCountries();
     }
     
-    // 随机感染地图区域（让地区变白）
-    if (this.mapArea) {
-      this.mapArea.infectRandomRegion();
+    // 显示信徒变化最大的国家事件
+    this.showTopEvent();
+    
+    // 更新总信徒数
+    this.updateTotalBelievers();
+    
+    // 更新财富
+    const wealthGain = this.gameState.updateWealth();
+    if (wealthGain > 0 && window.skillTree) {
+      window.skillTree.addWealth(wealthGain);
+    }
+  }
+
+  // 显示信徒变化最大的事件
+  showTopEvent() {
+    if (this.periodEvents.length === 0) return;
+    
+    // 找出信徒变化最大的事件
+    const topEvent = this.periodEvents.reduce((max, event) => 
+      event.believerChange > max.believerChange ? event : max
+    );
+    
+    // 获取明星名字
+    const starName = this.getStarName();
+    const fullText = `[${topEvent.countryId}] "${starName}"${topEvent.eventText}`;
+    
+    // 添加到历史
+    this.addEventToHistory(fullText, topEvent.believerChange, topEvent.countryId);
+  }
+
+  // 更新总信徒数显示
+  updateTotalBelievers() {
+    if (this.infoBar) {
+      const totalBelievers = this.gameState.getTotalBelievers();
+      this.infoBar.updateStats(totalBelievers, 0, 0);
     }
   }
 
   // 添加事件到历史记录
-  addEventToHistory(eventText, believers) {
+  addEventToHistory(eventText, believers, countryId) {
     const timestamp = new Date().toLocaleTimeString('zh-CN', { 
       hour: '2-digit', 
       minute: '2-digit',
@@ -131,6 +218,7 @@ export class EventBar {
     this.eventHistory.unshift({
       text: eventText,
       believers: believers,
+      countryId: countryId,
       time: timestamp
     });
     

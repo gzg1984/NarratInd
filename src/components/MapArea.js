@@ -1,8 +1,10 @@
 // MapArea.js - 地图区域组件
 export class MapArea {
-  constructor(containerId) {
+  constructor(containerId, gameState) {
     this.container = document.getElementById(containerId);
     this.svgElement = null;
+    this.gameState = gameState;
+    this.infectedRegions = new Map();
     this.init();
   }
 
@@ -40,64 +42,112 @@ export class MapArea {
       // 获取所有国家/地区的 path 元素
       const paths = this.svgElement.querySelectorAll('path');
       console.log('找到', paths.length, '个地区');
-      
-      // 初始化所有地区颜色
-      this.infectedRegions = new Map(); // 存储感染等级
     }
   }
 
   setupEventListeners() {
-    // 设置地图点击事件
-    if (this.container) {
-      this.container.addEventListener('click', (e) => this.handleMapClick(e));
+    // 等待 SVG 加载后设置点击事件
+    const objectElement = document.getElementById('world-map-svg');
+    if (objectElement) {
+      objectElement.addEventListener('load', () => {
+        if (this.svgElement) {
+          // 在 SVG 内部设置点击事件
+          this.svgElement.addEventListener('click', (e) => this.handleMapClick(e));
+        }
+      });
     }
   }
 
   handleMapClick(event) {
-    // 处理地图点击事件
-    console.log('地图被点击:', event.target);
+    // 需要访问 SVG 内部的元素
+    let target = event.target;
     
-    // 可以根据点击的区域做不同处理
-    // 例如：显示国家信息、传播病毒等
+    // 如果点击的是 object 本身，尝试获取 SVG 内部元素
+    if (target.tagName === 'OBJECT') {
+      return;
+    }
+    
+    // 如果点击的是 path 元素（国家）
+    if (target.tagName === 'path') {
+      const countryId = target.getAttribute('id');
+      console.log('点击国家:', countryId);
+      
+      // 如果游戏未开始，点击任意国家开始游戏
+      if (!this.gameState.isStarted()) {
+        if (countryId && this.gameState.getCountry(countryId)) {
+          const started = this.gameState.startGame(countryId);
+          if (started) {
+            this.updateCountryVisual(countryId);
+            // 通知 EventBar 显示开始事件
+            if (this.onGameStart) {
+              this.onGameStart(countryId);
+            }
+          }
+        }
+      } else {
+        // 游戏已开始，显示国家信息
+        this.showCountryInfo(countryId);
+      }
+    }
+  }
+  
+  // 设置游戏开始回调
+  setGameStartCallback(callback) {
+    this.onGameStart = callback;
   }
 
-  // 随机感染一个地区（让它变白）
-  infectRandomRegion() {
-    if (!this.svgElement) return;
-    
-    const paths = this.svgElement.querySelectorAll('path');
-    if (paths.length === 0) return;
-    
-    // 随机选择一个地区
-    const randomIndex = Math.floor(Math.random() * paths.length);
-    const region = paths[randomIndex];
-    const regionId = region.getAttribute('id');
-    
-    // 获取当前感染等级
-    let currentLevel = this.infectedRegions.get(regionId) || 0;
-    
-    // 增加感染等级（最多到10级，完全白色）
-    if (currentLevel < 10) {
-      currentLevel++;
-      this.infectedRegions.set(regionId, currentLevel);
-      
-      // 计算颜色（从原色逐渐变白）
-      const whiteness = currentLevel / 10;
-      const color = this.calculateInfectionColor(whiteness);
-      
-      region.setAttribute('fill', color);
-      region.style.fill = color;
-      
-      console.log(`地区 ${regionId || '未命名'} 感染等级: ${currentLevel}/10`);
+  // 显示国家信息
+  showCountryInfo(countryId) {
+    const country = this.gameState.getCountry(countryId);
+    if (country) {
+      const percentage = (country.believers / country.population * 100).toFixed(2);
+      alert(`国家: ${countryId}\n人口: ${(country.population / 1000000).toFixed(1)}M\n信徒: ${country.believers}\n占比: ${percentage}%\n财富等级: ${country.wealthLevel}`);
     }
   }
 
-  // 计算感染颜色（从蓝色渐变到白色）
+  // 根据国家ID更新视觉效果
+  updateCountryVisual(countryId) {
+    if (!this.svgElement) return;
+    
+    const country = this.gameState.getCountry(countryId);
+    if (!country) return;
+    
+    const paths = this.svgElement.querySelectorAll(`path[id="${countryId}"]`);
+    if (paths.length === 0) return;
+    
+    // 计算白度（根据信徒占比）
+    const percentage = country.believers / country.population;
+    const whiteness = Math.min(percentage * 2, 1); // 50%时完全白色
+    
+    // 如果国家刚被感染，先设置为深色（接近黑色）
+    const color = this.calculateInfectionColor(whiteness);
+    
+    paths.forEach(path => {
+      // 标记为已感染
+      if (!path.getAttribute('data-infected')) {
+        path.setAttribute('data-infected', 'true');
+      }
+      
+      // 直接设置颜色，不使用 CSS 过渡
+      path.setAttribute('fill', color);
+      path.style.fill = color;
+    });
+  }
+
+  // 更新所有已感染国家的视觉效果
+  updateAllInfectedCountries() {
+    const infected = this.gameState.getInfectedCountries();
+    infected.forEach(country => {
+      this.updateCountryVisual(country.id);
+    });
+  }
+
+  // 计算感染颜色（从 SVG 默认颜色黑色渐变到白色）
   calculateInfectionColor(whiteness) {
-    // 基础蓝色 RGB(30, 58, 95) -> 白色 RGB(255, 255, 255)
-    const baseR = 30;
-    const baseG = 58;
-    const baseB = 95;
+    // SVG 默认填充色是黑色 RGB(0, 0, 0) -> 白色 RGB(255, 255, 255)
+    const baseR = 0;
+    const baseG = 0;
+    const baseB = 0;
     const targetR = 255;
     const targetG = 255;
     const targetB = 255;
