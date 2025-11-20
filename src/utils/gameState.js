@@ -250,12 +250,46 @@ export class GameState {
       }
       
       const { country: targetCountry, type } = potentialTargets[selectedIndex];
+      
+      // 计算GDP差异影响（使用极严格的指数衰减公式）
+      const gdpDifference = targetCountry.gdp - sourceCountry.gdp;
+      let successRate = 1.0; // 基础成功率100%
+      
+      if (gdpDifference > 0) {
+        // 目标国更富裕 - 使用极严格的指数衰减
+        // 方案3：底数0.05 + 除数5 + 保底0.0001%
+        // 公式: 0.05^(GDP差距/5)
+        // 示例：
+        // - GDP差5: 0.05^1 = 5%
+        // - GDP差10: 0.05^2 = 0.25%
+        // - GDP差15: 0.05^3 = 0.0125%
+        // - GDP差28(海地→美国): 0.05^5.6 ≈ 0.00002% (几乎不可能)
+        const exponent = gdpDifference / 5;
+        successRate = Math.pow(0.05, exponent);
+        // 最低保证0.0001%成功率（需要技能才有意义）
+        successRate = Math.max(0.000001, successRate);
+      }
+      
+      // TODO: 技能修正接口（预留）
+      // 例如：s_refugee技能可以 successRate *= 1000（让穷国→富国变为0.02%可行）
+      // if (this.skillTree && this.skillTree.hasSkill('s_refugee')) {
+      //   successRate *= 1000;
+      // }
+      
+      // 成功率检查
+      if (Math.random() > successRate) {
+        const typeText = type === 'land' ? '陆地' : type === 'sea' ? '海运' : '空运';
+        console.log(`跨国传播失败(${typeText}): ${fromCountryId}(GDP${sourceCountry.gdp.toFixed(1)}) -> ${targetCountry.id}(GDP${targetCountry.gdp.toFixed(1)}), 成功率: ${(successRate * 100).toFixed(1)}%`);
+        return;
+      }
+      
+      // 传播成功
       targetCountry.infected = true;
       targetCountry.believers = config.initialBelievers;
       this.totalBelievers += config.initialBelievers;
 
       const typeText = type === 'land' ? '陆地' : type === 'sea' ? '海运' : '空运';
-      console.log(`跨国传播(${typeText}): ${fromCountryId} -> ${targetCountry.id}, 初始信徒: ${config.initialBelievers}`);
+      console.log(`跨国传播成功(${typeText}): ${fromCountryId}(GDP${sourceCountry.gdp.toFixed(1)}) -> ${targetCountry.id}(GDP${targetCountry.gdp.toFixed(1)}), 初始信徒: ${config.initialBelievers}`);
     });
   }
 
@@ -264,14 +298,46 @@ export class GameState {
     return Array.from(this.countries.values()).filter(c => c.infected);
   }
 
-  // 更新财富（基于信徒数量）
+  // 更新财富（新系统：从国家转移）
   updateWealth() {
     // 动态导入配置
     import('../data/gameConfig.js').then(module => {
-      const config = module.getWealthConfig();
-      const wealthGain = Math.floor(this.totalBelievers * config.generationRate);
-      this.wealth += wealthGain;
-      return wealthGain;
+      const transferConfig = module.getWealthTransferConfig();
+      let totalTransferred = 0;
+      
+      // 遍历所有已感染国家
+      const infectedCountries = this.getInfectedCountries();
+      
+      infectedCountries.forEach(country => {
+        if (country.believers === 0) return;
+        
+        const believerRatio = country.believers / country.population;
+        
+        // 计算本回合转移量：国家GDP × 信徒占比 × 转移率
+        const transferAmount = country.gdp * believerRatio * transferConfig.baseTransferRate;
+        
+        // 检查财富下限
+        const minGdp = country.originalGdp * transferConfig.minWealthRatio;
+        const actualTransfer = Math.min(transferAmount, Math.max(0, country.gdp - minGdp));
+        
+        if (actualTransfer > 0) {
+          country.gdp -= actualTransfer;
+          totalTransferred += actualTransfer;
+          
+          // 调试日志
+          if (actualTransfer > 0.001) {
+            console.log(`💰 财富转移: ${country.id} -${actualTransfer.toFixed(3)} (剩余${country.gdp.toFixed(2)}/${country.originalGdp.toFixed(2)})`);
+          }
+        }
+      });
+      
+      this.wealth += totalTransferred;
+      
+      if (totalTransferred > 0.01) {
+        console.log(`💰 本回合总转移: +${totalTransferred.toFixed(3)}, 累计财富: ${this.wealth.toFixed(2)}`);
+      }
+      
+      return totalTransferred;
     });
   }
 

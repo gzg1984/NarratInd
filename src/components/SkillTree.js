@@ -326,7 +326,8 @@ export class SkillTree {
   updateWealthDisplay() {
     const display = document.getElementById('wealth-display');
     if (display) {
-      display.textContent = this.getWealth();
+      // 只显示整数部分
+      display.textContent = Math.floor(this.getWealth());
     }
   }
 

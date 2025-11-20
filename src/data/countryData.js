@@ -1,7 +1,23 @@
 // countryData.js - 国家数据配置和初始化
 
+// GDP数据映射表 (单位：1分 = 1万亿美元，基于2024年数据)
+// 用于将旧的财富等级(1-10)转换为实际GDP值
+export const GDP_BY_WEALTH_LEVEL = {
+  1: 0.01,   // 最贫穷 (~100亿美元)
+  2: 0.02,   // 很穷 (~200亿美元)
+  3: 0.05,   // 穷 (~500亿美元)
+  4: 0.1,    // 中下 (~1000亿美元)
+  5: 0.3,    // 中等 (~3000亿美元)
+  6: 0.8,    // 中上 (~8000亿美元)
+  7: 1.5,    // 富裕 (~1.5万亿美元)
+  8: 3.0,    // 很富 (~3万亿美元)
+  9: 5.0,    // 极富 (~5万亿美元)
+  10: 28.0   // 超级大国 (~28万亿美元，美国)
+};
+
 // 国家初始数据配置
 // 格式: [国家ID, 人口(百万), 财富等级(1-10), 邻国列表, 有机场, 有港口]
+// 注：财富等级将被转换为GDP值
 // 机场：富裕国家、人口大国、交通枢纽
 // 港口：沿海国家、贸易国家
 export const initialCountryData = [
@@ -306,10 +322,15 @@ export const initialCountryData = [
  * @returns {Object} 国家对象
  */
 export function createCountry(id, population, wealthLevel, neighbors = [], hasAirport = false, hasPort = false) {
+  // 将财富等级转换为GDP值
+  const gdp = GDP_BY_WEALTH_LEVEL[wealthLevel] || 0.01;
+  
   return {
     id: id,
     population: population,
-    wealthLevel: wealthLevel,
+    wealthLevel: wealthLevel, // 保留等级用于现有逻辑
+    gdp: gdp, // 当前GDP（可动态变化）
+    originalGdp: gdp, // 原始GDP（用于计算下限和比率）
     neighbors: neighbors, // 邻国列表
     hasAirport: hasAirport, // 是否有机场
     hasPort: hasPort, // 是否有港口

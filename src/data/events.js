@@ -163,10 +163,14 @@ export const eventTypes = {
       
       const believerRatio = getBelieverRatio(country);
       
-      // === 2. 财富度影响（穷国更需要帮助）===
-      // 财富等级越低，需要帮助的人越多
-      const wealthFactor = (11 - country.wealthLevel) / 10; // 1.0 到 0.1
-      chance *= (0.5 + wealthFactor); // 贫穷国家: ×1.5, 富裕国家: ×0.6
+      // === 2. GDP影响（贫困国家好人事件减少）===
+      // 当前GDP与原始GDP的比率
+      const gdpRatio = country.gdp / country.originalGdp;
+      chance *= gdpRatio; // GDP降到50%，好人事件概率减半
+      
+      // 额外的：财富等级越低，单次帮助的效果越小（穷国资源匮乏）
+      const wealthFactor = (11 - country.wealthLevel) / 10;
+      chance *= (0.5 + wealthFactor); // 叠加原有的财富影响
       
       // === 3. 基础效果 ===
       let believers = config.baseGrowth; // 固定基础增长
@@ -308,6 +312,47 @@ export const eventTypes = {
       }
       
       return { triggered: false };
+    }
+  },
+  
+  // === 信徒流失事件（新增：贫困导致信仰崩溃） ===
+  
+  believer_loss: {
+    id: 'believer_loss',
+    name: '信徒流失',
+    
+    calculate: (country, skillTree, gameState) => {
+      // 动态导入配置
+      return import('./gameConfig.js').then(module => {
+        const lossConfig = module.getBelieverLossConfig();
+        
+        if (!lossConfig.enabled) {
+          return { triggered: false };
+        }
+        
+        const believerRatio = getBelieverRatio(country);
+        const gdpRatio = country.gdp / country.originalGdp;
+        
+        // 触发条件：高信徒占比 + 低GDP
+        if (believerRatio < lossConfig.minBelieverRatio || gdpRatio >= lossConfig.maxGdpRatio) {
+          return { triggered: false };
+        }
+        
+        // 计算流失量：GDP越低，流失越严重
+        // 流失率 = 基础流失率 × (1 - GDP比率)
+        const lossMultiplier = 1 - gdpRatio;
+        const lossRate = lossConfig.baseLossRate * lossMultiplier;
+        const believersLost = Math.ceil(country.believers * lossRate);
+        
+        console.log(`⚠️ ${country.id} 信徒流失: GDP${(gdpRatio*100).toFixed(0)}%, 流失${believersLost.toLocaleString()}人`);
+        
+        return {
+          triggered: true,
+          believers: -believersLost, // 负数表示减少
+          wealthChange: 0,
+          message: `经济崩溃导致信徒流失！-${believersLost.toLocaleString()}`
+        };
+      });
     }
   }
 };

@@ -49,9 +49,19 @@ const productionConfig = {
     initialBelievers: 100     // 起始信徒数
   },
   
-  // 财富生成
-  wealth: {
-    generationRate: 0.0001    // 每回合根据总信徒的 0.01% 生成财富
+  // 财富转移（新系统）
+  wealthTransfer: {
+    baseTransferRate: 0.01,   // 基础转移率 1%（100回合转移100%）
+    minWealthRatio: 0.05,     // 财富下限（原始GDP的5%，可被技能打破）
+    skillCanBreakLimit: true  // 技能是否可以打破下限
+  },
+  
+  // 信徒流失配置
+  believerLoss: {
+    enabled: true,
+    minBelieverRatio: 0.5,    // 最小信徒占比触发条件
+    maxGdpRatio: 0.3,         // 最大GDP比率触发条件（<30%原始GDP）
+    baseLossRate: 0.02        // 基础流失率 2%
   }
 };
 
@@ -79,7 +89,7 @@ const testingConfig = {
       baseGrowth: 500         // 固定增长 500 信徒（10倍）
     },
     crossBorder: {
-      baseChance: 0.5,        // 50% 基础概率
+      baseChance: 0.08,       // 8% 基础概率（与正式模式一致，方便观察国境限制）
       initialBelievers: 1000  // 新国家初始信徒数（100倍）
     }
   },
@@ -98,9 +108,19 @@ const testingConfig = {
     initialBelievers: 10000   // 起始信徒数（100倍）
   },
   
-  // 财富生成
-  wealth: {
-    generationRate: 0.001     // 每回合根据总信徒的 0.1% 生成财富（10倍）
+  // 财富转移（新系统，测试模式下转移更快）
+  wealthTransfer: {
+    baseTransferRate: 0.05,   // 基础转移率 5%（20回合转移100%，方便测试）
+    minWealthRatio: 0.05,     // 财富下限（原始GDP的5%）
+    skillCanBreakLimit: true  // 技能是否可以打破下限
+  },
+  
+  // 信徒流失配置
+  believerLoss: {
+    enabled: true,
+    minBelieverRatio: 0.5,    // 最小信徒占比触发条件
+    maxGdpRatio: 0.3,         // 最大GDP比率触发条件
+    baseLossRate: 0.05        // 基础流失率 5%（测试模式更明显）
   }
 };
 
@@ -156,8 +176,15 @@ export function getGameStartConfig() {
 }
 
 /**
- * 获取财富配置
+ * 获取财富转移配置
  */
-export function getWealthConfig() {
-  return getConfig().wealth;
+export function getWealthTransferConfig() {
+  return getConfig().wealthTransfer;
+}
+
+/**
+ * 获取信徒流失配置
+ */
+export function getBelieverLossConfig() {
+  return getConfig().believerLoss;
 }

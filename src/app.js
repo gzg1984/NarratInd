@@ -3,6 +3,7 @@ import { MapArea } from './components/MapArea.js';
 import { InfoBar } from './components/InfoBar.js';
 import { EventBar } from './components/EventBar.js';
 import { SkillTree } from './components/SkillTree.js';
+import { SpecialEventManager } from './components/SpecialEvents.js';
 import { StorageManager } from './utils/storage.js';
 import { GameState } from './utils/gameState.js';
 
@@ -11,6 +12,7 @@ let mapArea;
 let infoBar;
 let eventBar;
 let skillTree;
+let specialEventManager;
 let storage;
 let gameState;
 
@@ -128,16 +130,24 @@ function renderComponents() {
     // 将 skillTree 引用传给 gameState（用于事件系统）
     gameState.setSkillTree(skillTree);
     
+    // 初始化特殊事件管理器
+    specialEventManager = new SpecialEventManager(mapArea, gameState);
+    
     // 设置地图点击开始游戏的回调
     mapArea.setGameStartCallback((countryId) => {
         eventBar.showGameStartEvent(countryId);
+        // 游戏开始后启动特殊事件系统
+        specialEventManager.start();
     });
     
     // 设置胜利回调
     gameState.setVictoryCallback(() => {
         eventBar.showVictoryEvent();
+        // 游戏结束时停止特殊事件
+        specialEventManager.stop();
     });
     
     // 将 skillTree 暴露给全局，方便其他组件访问
     window.skillTree = skillTree;
+    window.specialEventManager = specialEventManager; // 调试用
 }
