@@ -23,6 +23,10 @@ export class InfoBar {
           <span class="stat-label">信徒:</span>
           <span class="stat-value" id="infected-count">0</span>
         </div>
+        <div class="stat-item" id="infection-rate-item" style="display: none;">
+          <span class="stat-label">感染率:</span>
+          <span class="stat-value" id="infection-rate">0.0%</span>
+        </div>
         <!-- <div class="stat-item">
           <span class="stat-label">死亡人数:</span>
           <span class="stat-value" id="death-count">0</span>
@@ -36,7 +40,7 @@ export class InfoBar {
   }
 
   // 更新统计数据
-  updateStats(infected, deaths, cured) {
+  updateStats(infected, deaths, cured, totalPopulation = null) {
     this.stats = { infected, deaths, cured };
     
     const infectedElement = document.getElementById('infected-count');
@@ -46,6 +50,23 @@ export class InfoBar {
     if (infectedElement) infectedElement.textContent = infected.toLocaleString();
     if (deathElement) deathElement.textContent = deaths.toLocaleString();
     if (curedElement) curedElement.textContent = cured.toLocaleString();
+    
+    // 在测试模式下显示感染率
+    if (totalPopulation) {
+      import('../data/gameConfig.js').then(module => {
+        const configMode = module.CONFIG_MODE;
+        const rateItem = document.getElementById('infection-rate-item');
+        const rateValue = document.getElementById('infection-rate');
+        
+        if (configMode === 'testing' && rateItem && rateValue) {
+          rateItem.style.display = 'flex';
+          const percentage = (infected / totalPopulation * 100).toFixed(2);
+          rateValue.textContent = `${percentage}%`;
+        } else if (rateItem) {
+          rateItem.style.display = 'none';
+        }
+      });
+    }
   }
 
   getStats() {

@@ -13,6 +13,9 @@ export class GameState {
     this.isVictory = false; // 是否已胜利
     this.onVictoryCallback = null; // 胜利回调
     this.skillTree = null; // 技能树引用
+    this.turnCount = 0; // 回合计数
+    this.lastUninfectedCheck = 0; // 上次检查未感染国家的回合
+    this.lastUninfectedCount = 0; // 上次未感染国家数量
     this.initCountryData();
   }
 
@@ -68,6 +71,7 @@ export class GameState {
   processTurn() {
     if (!this.isGameStarted || this.isVictory) return [];
 
+    this.turnCount++;
     const allTriggeredEvents = [];
     const infectedCountries = this.getInfectedCountries();
 
@@ -117,7 +121,63 @@ export class GameState {
     // 检查胜利条件
     this.checkVictory();
 
+    // 调试：检查孤立的未感染国家（在测试模式下）
+    this.checkIsolatedCountries();
+
     return allTriggeredEvents;
+  }
+
+  /**
+   * 检查孤立的未感染国家（调试功能）
+   * 在测试模式下，如果感染率>=98%且10回合内未感染国家没有变化，则输出未感染国家列表
+   */
+  checkIsolatedCountries() {
+    // 动态检查是否在测试模式
+    import('../data/gameConfig.js').then(module => {
+      const configMode = module.CONFIG_MODE;
+      if (configMode !== 'testing') return;
+
+      // 只检查有人口的国家
+      const inhabitedCountries = Array.from(this.countries.values())
+        .filter(c => c.population > 0);
+      const uninfectedCountries = inhabitedCountries
+        .filter(c => !c.infected);
+      const uninfectedCount = uninfectedCountries.length;
+      const infectionRate = (inhabitedCountries.length - uninfectedCount) / inhabitedCountries.length;
+
+      // 如果感染率 >= 98% 且有未感染国家
+      if (infectionRate >= 0.98 && uninfectedCount > 0) {
+        // 如果未感染国家数量在10回合内没有变化
+        if (uninfectedCount === this.lastUninfectedCount) {
+          if (this.turnCount - this.lastUninfectedCheck >= 10) {
+            // 输出未感染国家列表
+            const countryIds = uninfectedCountries.map(c => c.id).join(', ');
+            console.warn(`\n⚠️ 检测到孤立国家！已感染 ${infectionRate.toFixed(1)}%，10回合未变化`);
+            console.warn(`未感染的国家 (${uninfectedCount}个): ${countryIds}`);
+            
+            // 分析这些国家为什么没有被感染
+            uninfectedCountries.forEach(country => {
+              const hasInfectedNeighbor = country.neighbors?.some(nId => {
+                const neighbor = this.countries.get(nId);
+                return neighbor && neighbor.infected;
+              });
+              const connections = [];
+              if (country.neighbors?.length > 0) connections.push(`邻国${country.neighbors.length}个`);
+              if (country.hasAirport) connections.push('有机场');
+              if (country.hasPort) connections.push('有港口');
+              const connectStr = connections.length > 0 ? connections.join(', ') : '无连接';
+              console.warn(`  - ${country.id}: ${connectStr}${hasInfectedNeighbor ? ' (有已感染邻国)' : ''}`);
+            });
+            
+            this.lastUninfectedCheck = this.turnCount;
+          }
+        } else {
+          // 未感染国家数量变化了，重置检查
+          this.lastUninfectedCount = uninfectedCount;
+          this.lastUninfectedCheck = this.turnCount;
+        }
+      }
+    });
   }
 
   /**
@@ -130,28 +190,72 @@ export class GameState {
       const config = module.getEventConfig('crossBorder');
       
       const sourceCountry = this.countries.get(fromCountryId);
-      if (!sourceCountry || !sourceCountry.neighbors || sourceCountry.neighbors.length === 0) {
-        console.log(`跨国传播失败: ${fromCountryId} 没有邻国数据`);
-        return;
+      if (!sourceCountry) return;
+      
+      // 收集所有可能的目标国家
+      const potentialTargets = [];
+      
+      // 1. 陆地邻国（优先级最高）
+      if (sourceCountry.neighbors && sourceCountry.neighbors.length > 0) {
+        const uninfectedNeighbors = sourceCountry.neighbors
+          .map(neighborId => this.countries.get(neighborId))
+          .filter(neighbor => neighbor && !neighbor.infected);
+        potentialTargets.push(...uninfectedNeighbors.map(c => ({ country: c, type: 'land' })));
       }
       
-      // 只选择未感染的邻国
-      const uninfectedNeighbors = sourceCountry.neighbors
-        .map(neighborId => this.countries.get(neighborId))
-        .filter(neighbor => neighbor && !neighbor.infected);
-
-      if (uninfectedNeighbors.length === 0) {
-        console.log(`跨国传播失败: ${fromCountryId} 的所有邻国已被感染`);
+      // 2. 通过机场传播（如果源国有机场）
+      if (sourceCountry.hasAirport) {
+        const airportCountries = Array.from(this.countries.values())
+          .filter(c => !c.infected && c.hasAirport && c.id !== sourceCountry.id);
+        // 机场传播概率较低，只添加部分
+        if (airportCountries.length > 0) {
+          const sample = airportCountries.slice(0, Math.max(5, Math.floor(airportCountries.length * 0.2)));
+          potentialTargets.push(...sample.map(c => ({ country: c, type: 'air' })));
+        }
+      }
+      
+      // 3. 通过港口传播（如果源国有港口）
+      if (sourceCountry.hasPort) {
+        const portCountries = Array.from(this.countries.values())
+          .filter(c => !c.infected && c.hasPort && c.id !== sourceCountry.id);
+        // 港口传播概率中等，添加部分
+        if (portCountries.length > 0) {
+          const sample = portCountries.slice(0, Math.max(5, Math.floor(portCountries.length * 0.3)));
+          potentialTargets.push(...sample.map(c => ({ country: c, type: 'sea' })));
+        }
+      }
+      
+      if (potentialTargets.length === 0) {
+        console.log(`跨国传播失败: ${fromCountryId} 没有可传播的目标`);
         return;
       }
 
-      // 随机选择一个未感染的邻国
-      const targetCountry = uninfectedNeighbors[Math.floor(Math.random() * uninfectedNeighbors.length)];
+      // 根据传播类型设置权重（陆地>海运>空运）
+      const weights = potentialTargets.map(t => {
+        if (t.type === 'land') return 10;
+        if (t.type === 'sea') return 3;
+        return 1; // air
+      });
+      
+      // 加权随机选择
+      const totalWeight = weights.reduce((a, b) => a + b, 0);
+      let random = Math.random() * totalWeight;
+      let selectedIndex = 0;
+      for (let i = 0; i < weights.length; i++) {
+        random -= weights[i];
+        if (random <= 0) {
+          selectedIndex = i;
+          break;
+        }
+      }
+      
+      const { country: targetCountry, type } = potentialTargets[selectedIndex];
       targetCountry.infected = true;
-      targetCountry.believers = config.initialBelievers; // 使用配置的初始信徒数
+      targetCountry.believers = config.initialBelievers;
       this.totalBelievers += config.initialBelievers;
 
-      console.log(`跨国传播: ${fromCountryId} -> ${targetCountry.id}, 初始信徒: ${config.initialBelievers}`);
+      const typeText = type === 'land' ? '陆地' : type === 'sea' ? '海运' : '空运';
+      console.log(`跨国传播(${typeText}): ${fromCountryId} -> ${targetCountry.id}, 初始信徒: ${config.initialBelievers}`);
     });
   }
 
@@ -195,13 +299,15 @@ export class GameState {
   checkVictory() {
     if (this.isVictory) return; // 已经胜利，不重复检查
     
-    // 检查是否所有国家都被感染且达到100%
+    // 检查是否所有有人口的国家都被感染且达到100%
+    // 排除无人居住的岛屿（人口为0的国家）
     const allCountries = Array.from(this.countries.values());
-    const allInfected = allCountries.every(country => country.infected);
+    const inhabitedCountries = allCountries.filter(country => country.population > 0);
+    const allInfected = inhabitedCountries.every(country => country.infected);
     
     if (allInfected && this.totalBelievers >= this.totalPopulation) {
       this.isVictory = true;
-      console.log('🎉 胜利！所有国家都已被完全征服！');
+      console.log('🎉 胜利！所有有人居住的国家都已被完全征服！');
       if (this.onVictoryCallback) {
         this.onVictoryCallback();
       }

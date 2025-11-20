@@ -201,7 +201,8 @@ export class EventBar {
   updateTotalBelievers() {
     if (this.infoBar) {
       const totalBelievers = this.gameState.getTotalBelievers();
-      this.infoBar.updateStats(totalBelievers, 0, 0);
+      const totalPopulation = this.gameState.totalPopulation;
+      this.infoBar.updateStats(totalBelievers, 0, 0, totalPopulation);
     }
   }
 
