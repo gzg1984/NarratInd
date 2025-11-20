@@ -7,12 +7,10 @@ export class EventBar {
     this.mapArea = mapArea;
     this.gameState = gameState;
     this.eventTimer = null;
-    this.eventTypes = ['self_spread', 'attract_dissatisfied', 'real_help'];
     this.eventHistory = [];
     this.maxHistoryLength = 10; // 最多显示10条历史
     this.isExpanded = false; // 是否展开
     this.latestEvent = null; // 最新事件
-    this.periodEvents = []; // 周期内的所有事件
     this.init();
   }
 
@@ -132,11 +130,18 @@ export class EventBar {
 
   // 开始事件循环
   startEventLoop() {
-    this.eventTimer = setInterval(() => {
-      if (this.gameState.isStarted()) {
-        this.triggerPeriodEvents();
-      }
-    }, 2000); // 每2秒触发一次
+    // 动态导入配置
+    import('../data/gameConfig.js').then(module => {
+      const interval = module.getTurnInterval();
+      
+      this.eventTimer = setInterval(() => {
+        if (this.gameState.isStarted()) {
+          this.triggerPeriodEvents();
+        }
+      }, interval); // 使用配置的回合间隔
+      
+      console.log(`事件循环已启动，间隔: ${interval}ms`);
+    });
   }
 
   // 停止事件循环
@@ -147,56 +152,49 @@ export class EventBar {
     }
   }
 
-  // 触发周期内所有国家的事件
+  // 触发周期内所有国家的事件（新系统）
   triggerPeriodEvents() {
-    this.periodEvents = [];
-    
-    // 获取所有已感染的国家
-    const infectedCountries = this.gameState.getInfectedCountries();
-    
-    // 每个国家随机触发一个事件
-    infectedCountries.forEach(country => {
-      const randomEventType = this.eventTypes[Math.floor(Math.random() * this.eventTypes.length)];
-      const eventResult = this.gameState.triggerEvent(country.id, randomEventType);
-      
-      if (eventResult) {
-        this.periodEvents.push(eventResult);
-      }
-    });
-    
-    // 更新地图视觉
+    const infected = this.gameState.getInfectedCountries();
+    if (infected.length === 0) return;
+
+    // 处理一个回合的所有事件
+    const allEvents = this.gameState.processTurn();
+
+    // 只显示信徒变化最大的事件
+    if (allEvents.length > 0) {
+      this.showTopEvent(allEvents);
+    }
+
+    // 更新所有已感染国家的视觉效果
     if (this.mapArea) {
       this.mapArea.updateAllInfectedCountries();
     }
-    
-    // 显示信徒变化最大的国家事件
-    this.showTopEvent();
-    
-    // 更新总信徒数
+
+    // 更新总信徒数显示
     this.updateTotalBelievers();
     
-    // 更新财富
-    const wealthGain = this.gameState.updateWealth();
-    if (wealthGain > 0 && window.skillTree) {
-      window.skillTree.addWealth(wealthGain);
+    // 更新技能树财富显示
+    if (window.skillTree) {
+      window.skillTree.updateWealthDisplay();
     }
   }
 
   // 显示信徒变化最大的事件
-  showTopEvent() {
-    if (this.periodEvents.length === 0) return;
+  showTopEvent(events) {
+    // 过滤出有信徒变化的事件
+    const believerEvents = events.filter(e => e.believers > 0);
     
-    // 找出信徒变化最大的事件
-    const topEvent = this.periodEvents.reduce((max, event) => 
-      event.believerChange > max.believerChange ? event : max
+    if (believerEvents.length === 0) return;
+    
+    // 找到信徒变化最大的事件
+    const topEvent = believerEvents.reduce((max, event) => 
+      event.believers > max.believers ? event : max
     );
-    
-    // 获取明星名字
+
     const starName = this.getStarName();
-    const fullText = `[${topEvent.countryId}] "${starName}"${topEvent.eventText}`;
+    const fullText = `${topEvent.countryId}: ${topEvent.eventName}`;
     
-    // 添加到历史
-    this.addEventToHistory(fullText, topEvent.believerChange, topEvent.countryId);
+    this.addEventToHistory(fullText, topEvent.believers, topEvent.countryId);
   }
 
   // 更新总信徒数显示

@@ -125,6 +125,9 @@ function renderComponents() {
     // 渲染技能树
     skillTree = new SkillTree('skill-tree', gameState);
     
+    // 将 skillTree 引用传给 gameState（用于事件系统）
+    gameState.setSkillTree(skillTree);
+    
     // 设置地图点击开始游戏的回调
     mapArea.setGameStartCallback((countryId) => {
         eventBar.showGameStartEvent(countryId);

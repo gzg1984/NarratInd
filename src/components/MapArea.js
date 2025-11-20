@@ -116,7 +116,8 @@ export class MapArea {
     if (paths.length === 0) return;
     
     // 计算白度（根据信徒占比）
-    const percentage = country.believers / country.population;
+    // 确保不超过100%
+    const percentage = Math.min(country.believers / country.population, 1.0);
     const whiteness = Math.min(percentage * 2, 1); // 50%时完全白色
     
     // 如果国家刚被感染，先设置为深色（接近黑色）
