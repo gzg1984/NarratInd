@@ -46,7 +46,20 @@ export const eventTypes = {
       // === 3. 信徒占比影响（占比越高，效果越好）===
       const effectMultiplier = getBelieverRatioMultiplier(believerRatio);
       
-      // === 4. 天赋修正 ===
+      // === 4. 脱教者惩罚 ===
+      // penalty = 0.5^(apostates/totalApostates)
+      // 需要从gameState获取全局脱教者总数
+      let apostatePenalty = 1.0;
+      if (country.apostates > 0 && gameState && gameState.getTotalApostates) {
+        const totalApostates = gameState.getTotalApostates();
+        if (totalApostates > 0) {
+          const apostateRatio = country.apostates / totalApostates;
+          apostatePenalty = Math.pow(0.5, apostateRatio);
+          chance *= apostatePenalty;
+        }
+      }
+      
+      // === 5. 天赋修正 ===
       
       // s_chosen: 神选 - 富国更高概率，信徒翻倍
       if (skillTree.hasSkill('s_chosen') && isWealthyCountry(country)) {
@@ -72,7 +85,7 @@ export const eventTypes = {
         effectMultiplier *= 2;
       }
       
-      // === 5. 概率检测 ===
+      // === 6. 概率检测 ===
       if (Math.random() < chance) {
         // 基础增长：当前信徒的配置百分比
         const baseGrowth = Math.ceil(country.believers * config.baseGrowthRate);
@@ -111,9 +124,19 @@ export const eventTypes = {
       
       // === 3. 信徒占比影响效果 ===
       // 注意：此事件只在<50%时触发，所以只使用前3档
-      const effectMultiplier = getBelieverRatioMultiplier(believerRatio);
+      let effectMultiplier = getBelieverRatioMultiplier(believerRatio);
       
-      // === 4. 天赋修正 ===
+      // === 4. 脱教者惩罚 ===
+      if (country.apostates > 0 && gameState && gameState.getTotalApostates) {
+        const totalApostates = gameState.getTotalApostates();
+        if (totalApostates > 0) {
+          const apostateRatio = country.apostates / totalApostates;
+          const apostatePenalty = Math.pow(0.5, apostateRatio);
+          chance *= apostatePenalty;
+        }
+      }
+      
+      // === 5. 天赋修正 ===
       
       // s_fair: 公平 - 贫穷国家更高概率
       if (skillTree.hasSkill('s_fair') && isPoorCountry(country)) {
@@ -133,7 +156,7 @@ export const eventTypes = {
         effectMultiplier *= 2;
       }
       
-      // === 5. 概率检测 ===
+      // === 6. 概率检测 ===
       if (Math.random() < chance) {
         const nonBelievers = getNonBelievers(country);
         // 基础：非信徒的配置百分比
@@ -177,9 +200,19 @@ export const eventTypes = {
       let wealthChange = 0;
       
       // === 4. 信徒占比影响效果 ===
-      const effectMultiplier = getBelieverRatioMultiplier(believerRatio);
+      let effectMultiplier = getBelieverRatioMultiplier(believerRatio);
       
-      // === 5. 天赋修正 ===
+      // === 5. 脱教者惩罚 ===
+      if (country.apostates > 0 && gameState && gameState.getTotalApostates) {
+        const totalApostates = gameState.getTotalApostates();
+        if (totalApostates > 0) {
+          const apostateRatio = country.apostates / totalApostates;
+          const apostatePenalty = Math.pow(0.5, apostateRatio);
+          chance *= apostatePenalty;
+        }
+      }
+      
+      // === 6. 天赋修正 ===
       
       // s_logic: 逻辑 - 提高概率、效果和财富
       if (skillTree.hasSkill('s_logic')) {
@@ -195,7 +228,7 @@ export const eventTypes = {
         wealthChange += Math.floor(believers * effectMultiplier * 0.2);
       }
       
-      // === 6. 概率检测 ===
+      // === 7. 概率检测 ===
       if (Math.random() < chance) {
         return {
           triggered: true,

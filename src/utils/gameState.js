@@ -1,9 +1,10 @@
 // gameState.js - 游戏状态管理
 import { initializeCountries } from '../data/countryData.js';
 import { processCountryEvents } from '../data/events.js';
+import { NewsSystem } from '../components/NewsSystem.js';
 
 export class GameState {
-  constructor() {
+  constructor(getStarNameFn) {
     this.countries = new Map(); // 国家数据
     this.totalPopulation = 0; // 全球总人口
     this.startCountry = null; // 起始国家
@@ -12,10 +13,12 @@ export class GameState {
     this.isGameStarted = false; // 游戏是否开始
     this.isVictory = false; // 是否已胜利
     this.onVictoryCallback = null; // 胜利回调
+    this.onDefeatCallback = null; // 失败回调
     this.skillTree = null; // 技能树引用
     this.turnCount = 0; // 回合计数
     this.lastUninfectedCheck = 0; // 上次检查未感染国家的回合
     this.lastUninfectedCount = 0; // 上次未感染国家数量
+    this.newsSystem = new NewsSystem(this, getStarNameFn); // 新闻系统
     this.initCountryData();
   }
 
@@ -58,6 +61,8 @@ export class GameState {
       this.totalBelievers = config.initialBelievers;
 
       console.log(`游戏开始于: ${countryId}, 起始信徒: ${config.initialBelievers}, 人口: ${country.population}, 财富等级: ${country.wealthLevel}`);
+      
+      // 注意：game_start 新闻由 app.js 立即显示，不需要在这里记录到队列
     });
     
     this.isGameStarted = true;
@@ -81,6 +86,9 @@ export class GameState {
       const isFullyConverted = country.believers >= country.population;
       
       const events = processCountryEvents(country, this.skillTree, this, isFullyConverted);
+      
+      // 记录传播前的信徒占比（用于检测里程碑）
+      const oldRatio = country.believers / country.population;
       
       // 应用事件效果
       for (const event of events) {
@@ -113,10 +121,21 @@ export class GameState {
         
         allTriggeredEvents.push(event);
       }
+      
+      // 检查是否达到新的信徒里程碑
+      const newRatio = country.believers / country.population;
+      if (this.hasCrossedMilestone(oldRatio, newRatio)) {
+        this.newsSystem.recordEvent('believers_milestone', {
+          countryId: country.id
+        });
+      }
     }
 
     // 每回合更新财富（基于信徒）
     this.updateWealth();
+
+    // 检查失败条件（脱教者系统）
+    this.checkDefeat();
 
     // 检查胜利条件
     this.checkVictory();
@@ -290,6 +309,13 @@ export class GameState {
 
       const typeText = type === 'land' ? '陆地' : type === 'sea' ? '海运' : '空运';
       console.log(`跨国传播成功(${typeText}): ${fromCountryId}(GDP${sourceCountry.gdp.toFixed(1)}) -> ${targetCountry.id}(GDP${targetCountry.gdp.toFixed(1)}), 初始信徒: ${config.initialBelievers}`);
+      
+      // 记录跨国传播新闻
+      this.newsSystem.recordEvent('cross_border_start', {
+        sourceCountry: fromCountryId,
+        targetCountry: targetCountry.id,
+        countryId: targetCountry.id // 新闻发生地为目标国
+      });
     });
   }
 
@@ -351,6 +377,15 @@ export class GameState {
     return this.totalBelievers;
   }
 
+  // 获取全球脱教者总数
+  getTotalApostates() {
+    let total = 0;
+    for (const country of this.countries.values()) {
+      total += country.apostates || 0;
+    }
+    return total;
+  }
+
   // 获取财富
   getWealth() {
     return this.wealth;
@@ -362,6 +397,39 @@ export class GameState {
   }
 
   // 检查是否胜利
+  checkDefeat() {
+    // 检查失败条件：所有已感染国家的信徒都变成了脱教者
+    const infectedCountries = this.getInfectedCountries();
+    
+    if (infectedCountries.length === 0) return; // 没有感染国家，不检查
+    
+    // 计算总信徒和总脱教者
+    let totalInfectedBelievers = 0;
+    let totalInfectedApostates = 0;
+    
+    for (const country of infectedCountries) {
+      totalInfectedBelievers += country.believers || 0;
+      totalInfectedApostates += country.apostates || 0;
+    }
+    
+    // 失败条件：信徒数为0且脱教者数量显著（至少有过一定规模的传播）
+    if (totalInfectedBelievers === 0 && totalInfectedApostates > 1000) {
+      this.isVictory = false; // 确保不是胜利状态
+      this.isGameStarted = false; // 结束游戏
+      console.log('💀 失败！你所宣传的思想已经被全世界抛弃！');
+      
+      // 调用失败回调
+      if (this.onDefeatCallback) {
+        this.onDefeatCallback();
+      }
+      
+      alert('你所宣传的思想已经被全世界抛弃，最终湮没在了时间之中。\n\n游戏失败！');
+      return true;
+    }
+    
+    return false;
+  }
+
   checkVictory() {
     if (this.isVictory) return; // 已经胜利，不重复检查
     
@@ -385,8 +453,31 @@ export class GameState {
     this.onVictoryCallback = callback;
   }
 
+  // 设置失败回调
+  setDefeatCallback(callback) {
+    this.onDefeatCallback = callback;
+  }
+
   // 获取总人口
   getTotalPopulation() {
     return this.totalPopulation;
+  }
+
+  /**
+   * 检查是否跨越了信徒里程碑
+   * @param {number} oldRatio - 旧的信徒占比
+   * @param {number} newRatio - 新的信徒占比
+   * @returns {boolean} 是否跨越了里程碑
+   */
+  hasCrossedMilestone(oldRatio, newRatio) {
+    const milestones = [0.1, 0.25, 0.5, 0.75, 1.0];
+    
+    for (const milestone of milestones) {
+      if (oldRatio < milestone && newRatio >= milestone) {
+        return true;
+      }
+    }
+    
+    return false;
   }
 }

@@ -130,19 +130,37 @@ button:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle, rgba(255,215,0,0.9) 0%, rgba(255,165,0,0.7) 100%);
-  border: 2px solid #ffd700;
   border-radius: 50%;
   cursor: pointer;
   z-index: 1000;
   transform: translate(-50%, -50%);
-  animation: special-event-pulse 0.5s ease-in-out infinite alternate, special-event-float 2s ease-in-out infinite;
-  box-shadow: 0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 165, 0, 0.4);
+  animation: special-event-float 2s ease-in-out infinite;
   transition: transform 0.2s ease;
   user-select: none;
 }
 
-.special-event-icon:hover {
+/* 好人图标 - 白色背景 */
+.special-event-icon.good-person-icon {
+  background: radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(240,240,240,0.85) 100%);
+  border: 2px solid #ddd;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.8), 0 0 40px rgba(200, 200, 200, 0.4);
+  animation: good-person-pulse 0.5s ease-in-out infinite alternate, special-event-float 2s ease-in-out infinite;
+}
+
+.special-event-icon.good-person-icon:hover {
+  transform: translate(-50%, -50%) scale(1.2);
+  box-shadow: 0 0 30px rgba(255, 255, 255, 1), 0 0 60px rgba(200, 200, 200, 0.6);
+}
+
+/* 反对者图标 - 金色背景 */
+.special-event-icon.opponent-icon {
+  background: radial-gradient(circle, rgba(255,215,0,0.9) 0%, rgba(255,165,0,0.7) 100%);
+  border: 2px solid #ffd700;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 165, 0, 0.4);
+  animation: opponent-pulse 0.5s ease-in-out infinite alternate, special-event-float 2s ease-in-out infinite;
+}
+
+.special-event-icon.opponent-icon:hover {
   transform: translate(-50%, -50%) scale(1.2);
   box-shadow: 0 0 30px rgba(255, 215, 0, 1), 0 0 60px rgba(255, 165, 0, 0.6);
 }
@@ -151,7 +169,18 @@ button:hover {
   transform: translate(-50%, -50%) scale(0.9);
 }
 
-@keyframes special-event-pulse {
+/* 好人脉动动画 - 白色光晕 */
+@keyframes good-person-pulse {
+  from {
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.8), 0 0 40px rgba(200, 200, 200, 0.4);
+  }
+  to {
+    box-shadow: 0 0 30px rgba(255, 255, 255, 1), 0 0 60px rgba(200, 200, 200, 0.6);
+  }
+}
+
+/* 反对者脉动动画 - 金色光晕 */
+@keyframes opponent-pulse {
   from {
     box-shadow: 0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 165, 0, 0.4);
   }

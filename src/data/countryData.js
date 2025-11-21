@@ -335,6 +335,7 @@ export function createCountry(id, population, wealthLevel, neighbors = [], hasAi
     hasAirport: hasAirport, // 是否有机场
     hasPort: hasPort, // 是否有港口
     believers: 0, // 当前信徒数
+    apostates: 0, // 脱教者数量（反对者事件失败产生）
     infected: false, // 是否已感染
     eventHistory: [], // 事件历史
     lastEventTime: 0 // 上次事件时间
