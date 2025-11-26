@@ -14,12 +14,60 @@ export class SkillTree {
     const originalSinDesc = getSkillDescription('original_sin');
     const originalSinQuote = getFormattedQuote('original_sin');
     
+    this.currentTab = 'wealth'; // 当前激活的Tab
+    
     this.skills = {
-      wealth: [
-        { id: 'w1', name: '基础积累', cost: 10, unlocked: false, x: 50, y: 50 },
-        { id: 'w2', name: '投资收益', cost: 20, unlocked: false, x: 50, y: 120, requires: ['w1'] },
-        { id: 'w3', name: '资本运作', cost: 30, unlocked: false, x: 50, y: 190, requires: ['w2'] }
-      ],
+      wealth: {
+        type: 'hexgrid',
+        centerX: 160,
+        centerY: 130,
+        hexSize: 26,
+        hexes: [
+          // Layer 1 - 核心（1个）
+          { id: 'holy_war', name: '圣战', icon: '⚡', q: 0, r: 0, layer: 1, cost: 10000, baseCost: 10000, unlocked: false,
+            desc: '发动圣战掠夺财富', adjacentTo: ['jizya', 'confiscate', 'slavery', 'inquisition', 'monopoly', 'land_grab'] },
+          
+          // Layer 2 - 中层（6个）
+          { id: 'jizya', name: '吉兹亚税', icon: '⚖️', q: 1, r: 0, layer: 2, cost: 1000, baseCost: 1000, unlocked: false,
+            desc: '向异教徒征收人头税', adjacentTo: ['holy_war'] },
+          { id: 'confiscate', name: '抄家异教徒', icon: '🏚️', q: 1, r: -1, layer: 2, cost: 1000, baseCost: 1000, unlocked: false,
+            desc: '没收异教徒财产', adjacentTo: ['holy_war'] },
+          { id: 'slavery', name: '奴隶制', icon: '⛓️', q: 0, r: -1, layer: 2, cost: 1000, baseCost: 1000, unlocked: false,
+            desc: '奴役异教徒劳动', adjacentTo: ['holy_war'] },
+          { id: 'inquisition', name: '宗教裁判', icon: '⚔️', q: -1, r: 0, layer: 2, cost: 1000, baseCost: 1000, unlocked: false,
+            desc: '审判异端并没收财产', adjacentTo: ['holy_war'] },
+          { id: 'monopoly', name: '宗教垄断', icon: '🏦', q: -1, r: 1, layer: 2, cost: 1000, baseCost: 1000, unlocked: false,
+            desc: '垄断关键行业', adjacentTo: ['holy_war'] },
+          { id: 'land_grab', name: '土地掠夺', icon: '🗺️', q: 0, r: 1, layer: 2, cost: 1000, baseCost: 1000, unlocked: false,
+            desc: '掠夺异教徒土地', adjacentTo: ['holy_war'] },
+          
+          // Layer 3 - 外围（12个）
+          { id: 'tithe', name: '十一税', icon: '📜', q: 2, r: 0, layer: 3, cost: 100, baseCost: 100, unlocked: false,
+            desc: '每回合从信徒获得财富', adjacentTo: ['jizya'] },
+          { id: 'forced_labor', name: '义务劳动', icon: '⚒️', q: 2, r: -1, layer: 3, cost: 100, baseCost: 100, unlocked: false,
+            desc: '强制信徒劳动获得财富', adjacentTo: ['jizya', 'confiscate'] },
+          { id: 'charity', name: '慈善募捐', icon: '🎗️', q: 1, r: -2, layer: 3, cost: 100, baseCost: 100, unlocked: false,
+            desc: '以慈善名义募集财富', adjacentTo: ['confiscate'] },
+          { id: 'indulgence', name: '赎罪券', icon: '📃', q: 0, r: -2, layer: 3, cost: 100, baseCost: 100, unlocked: false,
+            desc: '出售赎罪券获得财富', adjacentTo: ['slavery', 'confiscate'] },
+          { id: 'pilgrimage', name: '朝圣税', icon: '🕌', q: -1, r: -1, layer: 3, cost: 100, baseCost: 100, unlocked: false,
+            desc: '向朝圣者收取税金', adjacentTo: ['slavery'] },
+          { id: 'relic', name: '圣物交易', icon: '💎', q: -2, r: 0, layer: 3, cost: 100, baseCost: 100, unlocked: false,
+            desc: '售卖圣物获得财富', adjacentTo: ['inquisition', 'slavery'] },
+          { id: 'blessing', name: '祝福收费', icon: '✨', q: -2, r: 1, layer: 3, cost: 100, baseCost: 100, unlocked: false,
+            desc: '为信徒祝福收费', adjacentTo: ['inquisition'] },
+          { id: 'monastery', name: '修道院产业', icon: '🏛️', q: -1, r: 2, layer: 3, cost: 100, baseCost: 100, unlocked: false,
+            desc: '修道院经营产业', adjacentTo: ['monopoly', 'inquisition'] },
+          { id: 'church_tax', name: '教会税', icon: '📋', q: 0, r: 2, layer: 3, cost: 100, baseCost: 100, unlocked: false,
+            desc: '向教区征收税金', adjacentTo: ['monopoly'] },
+          { id: 'donation', name: '强制捐献', icon: '💰', q: 1, r: 1, layer: 3, cost: 100, baseCost: 100, unlocked: false,
+            desc: '要求信徒定期捐献', adjacentTo: ['land_grab', 'monopoly'] },
+          { id: 'temple', name: '神殿贡品', icon: '🎁', q: 2, r: 1, layer: 3, cost: 100, baseCost: 100, unlocked: false,
+            desc: '收集神殿贡品', adjacentTo: ['land_grab'] },
+          { id: 'ritual_fee', name: '仪式费用', icon: '🔮', q: 1, r: -1, layer: 3, cost: 100, baseCost: 100, unlocked: false,
+            desc: '举行仪式收费', adjacentTo: ['jizya', 'land_grab'] }
+        ]
+      },
       spread: [
         // Tier 1
         { id: 'compassion', name: compassionDesc.name, icon: '🥣', cost: 0, baseCost: 0, unlocked: false, x: 20, y: 30, tier: 1,
@@ -82,19 +130,66 @@ export class SkillTree {
           </div>
         </div>
         
-        <div style="display: flex; justify-content: space-around; gap: 10px;">
-          <!-- 财富树 -->
-          <div class="tree-column">
-            <h4 style="text-align: center; color: #64b5f6; font-size: 13px; margin-bottom: 10px;">财富</h4>
-            <svg width="100" height="250" style="display: block;">
-              ${this.renderTreeLines(this.skills.wealth, 'wealth')}
-              ${this.renderTreeNodes(this.skills.wealth, 'wealth')}
-            </svg>
+        <!-- Tab切换按钮 -->
+        <div style="display: flex; justify-content: center; gap: 10px; margin-bottom: 15px; border-bottom: 2px solid #1976d2; padding-bottom: 10px;">
+          <button 
+            class="skill-tab" 
+            data-tab="wealth"
+            style="
+              background-color: ${this.currentTab === 'wealth' ? '#1976d2' : '#2c3e50'};
+              color: white;
+              border: 2px solid ${this.currentTab === 'wealth' ? '#64b5f6' : '#34495e'};
+              border-radius: 8px;
+              padding: 8px 20px;
+              cursor: pointer;
+              font-size: 14px;
+              font-weight: bold;
+              transition: all 0.3s;
+            "
+          >💰 敛财</button>
+          <button 
+            class="skill-tab" 
+            data-tab="spread"
+            style="
+              background-color: ${this.currentTab === 'spread' ? '#1976d2' : '#2c3e50'};
+              color: white;
+              border: 2px solid ${this.currentTab === 'spread' ? '#64b5f6' : '#34495e'};
+              border-radius: 8px;
+              padding: 8px 20px;
+              cursor: pointer;
+              font-size: 14px;
+              font-weight: bold;
+              transition: all 0.3s;
+            "
+          >🌍 传播</button>
+          <button 
+            class="skill-tab" 
+            data-tab="trait"
+            style="
+              background-color: ${this.currentTab === 'trait' ? '#1976d2' : '#2c3e50'};
+              color: white;
+              border: 2px solid ${this.currentTab === 'trait' ? '#64b5f6' : '#34495e'};
+              border-radius: 8px;
+              padding: 8px 20px;
+              cursor: pointer;
+              font-size: 14px;
+              font-weight: bold;
+              transition: all 0.3s;
+            "
+          >✨ 特质</button>
+        </div>
+
+        <!-- 天赋树内容区域 -->
+        <div style="display: flex; justify-content: center; align-items: center; min-height: 300px;">
+          <!-- 财富网格 -->
+          <div class="tree-column" style="display: ${this.currentTab === 'wealth' ? 'flex' : 'none'}; flex-direction: column; align-items: center;">
+            <div style="position: relative; width: 340px; height: 280px;">
+              ${this.renderHexGrid()}
+            </div>
           </div>
           
           <!-- 传播树 -->
-          <div class="tree-column">
-            <h4 style="text-align: center; color: #64b5f6; font-size: 13px; margin-bottom: 10px;">传播</h4>
+          <div class="tree-column" style="display: ${this.currentTab === 'spread' ? 'flex' : 'none'}; flex-direction: column; align-items: center;">
             <svg width="100" height="220" style="display: block;">
               ${this.renderTreeLines(this.skills.spread, 'spread')}
               ${this.renderTreeNodes(this.skills.spread, 'spread')}
@@ -102,8 +197,7 @@ export class SkillTree {
           </div>
           
           <!-- 特质树 -->
-          <div class="tree-column">
-            <h4 style="text-align: center; color: #64b5f6; font-size: 13px; margin-bottom: 10px;">特质</h4>
+          <div class="tree-column" style="display: ${this.currentTab === 'trait' ? 'flex' : 'none'}; flex-direction: column; align-items: center;">
             <svg width="100" height="250" style="display: block;">
               ${this.renderTreeLines(this.skills.trait, 'trait')}
               ${this.renderTreeNodes(this.skills.trait, 'trait')}
@@ -218,9 +312,98 @@ export class SkillTree {
     }).join('');
   }
 
+  // 六边形坐标转像素坐标
+  hexToPixel(q, r, size, centerX, centerY) {
+    const x = size * (Math.sqrt(3) * q + Math.sqrt(3) / 2 * r);
+    const y = size * (3 / 2 * r);
+    return { x: x + centerX, y: y + centerY };
+  }
+
+  // 检查六边形是否可解锁（邻接条件满足）
+  canUnlockHex(hex) {
+    if (hex.unlocked) return false;
+    
+    // 没有邻接要求（外围格子），可以直接解锁
+    if (!hex.adjacentTo || hex.adjacentTo.length === 0) {
+      return true;
+    }
+    
+    // 检查是否至少有一个邻接格子已解锁
+    return hex.adjacentTo.some(adjId => {
+      const adjHex = this.skills.wealth.hexes.find(h => h.id === adjId);
+      return adjHex && adjHex.unlocked;
+    });
+  }
+
+  // 渲染六边形网格
+  renderHexGrid() {
+    const { hexes, centerX, centerY, hexSize } = this.skills.wealth;
+    
+    return hexes.map(hex => {
+      const pos = this.hexToPixel(hex.q, hex.r, hexSize, centerX, centerY);
+      
+      // 根据状态确定颜色
+      let bgColor, borderColor;
+      if (hex.unlocked) {
+        bgColor = '#4caf50'; // 绿色-已解锁
+        borderColor = '#2e7d32';
+      } else if (this.canUnlockHex(hex)) {
+        // 根据层级设置可解锁颜色
+        if (hex.layer === 3) bgColor = '#90a4ae'; // 外围-灰蓝
+        else if (hex.layer === 2) bgColor = '#ff9800'; // 中层-橙色
+        else bgColor = '#c62828'; // 核心-红色
+        borderColor = '#1976d2';
+      } else {
+        bgColor = '#424242'; // 深灰-未解锁
+        borderColor = '#616161';
+      }
+      
+      const icon = hex.icon || (hex.unlocked ? '✓' : '?');
+      
+      return `
+        <div 
+          class="hex-skill" 
+          data-hex-id="${hex.id}"
+          style="
+            position: absolute;
+            left: ${pos.x - hexSize}px;
+            top: ${pos.y - hexSize}px;
+            width: ${hexSize * 2}px;
+            height: ${hexSize * 2}px;
+            background-color: ${bgColor};
+            clip-path: polygon(50% 0%, 93.3% 25%, 93.3% 75%, 50% 100%, 6.7% 75%, 6.7% 25%);
+            border: 2px solid ${borderColor};
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+          "
+        >
+          <span style="
+            font-size: 18px;
+            font-weight: bold;
+            color: white;
+            pointer-events: none;
+          ">${icon}</span>
+        </div>
+      `;
+    }).join('');
+  }
+
   setupEventListeners() {
     // 为所有技能节点添加点击事件
     setTimeout(() => {
+      // 处理Tab切换按钮
+      const tabButtons = this.container.querySelectorAll('.skill-tab');
+      tabButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+          const tab = e.target.getAttribute('data-tab');
+          this.switchTab(tab);
+        });
+      });
+
+      // 处理树状技能节点
       const nodes = this.container.querySelectorAll('.skill-node');
       nodes.forEach(node => {
         node.addEventListener('click', (e) => {
@@ -238,7 +421,32 @@ export class SkillTree {
           this.hideTooltip();
         });
       });
+
+      // 处理六边形节点
+      const hexNodes = this.container.querySelectorAll('.hex-skill');
+      hexNodes.forEach(hexNode => {
+        hexNode.addEventListener('click', (e) => {
+          const hexId = e.currentTarget.getAttribute('data-hex-id');
+          this.unlockSkill(hexId);
+        });
+        
+        hexNode.addEventListener('mouseenter', (e) => {
+          const hexId = e.currentTarget.getAttribute('data-hex-id');
+          this.showTooltip(hexId, e);
+        });
+        
+        hexNode.addEventListener('mouseleave', () => {
+          this.hideTooltip();
+        });
+      });
     }, 100);
+  }
+
+  // 切换Tab
+  switchTab(tab) {
+    this.currentTab = tab;
+    this.render();
+    this.setupEventListeners();
   }
 
   // 解锁技能
@@ -257,9 +465,15 @@ export class SkillTree {
    * ⭐ 更新所有天赋的实时价格
    */
   updateAllSkillCosts() {
-    for (const tree of Object.values(this.skills)) {
-      for (const skill of tree) {
-        skill.cost = this.calculateRealTimeCost(skill);
+    for (const [type, tree] of Object.entries(this.skills)) {
+      if (type === 'wealth' && tree.type === 'hexgrid') {
+        for (const hex of tree.hexes) {
+          hex.cost = this.calculateRealTimeCost(hex);
+        }
+      } else if (Array.isArray(tree)) {
+        for (const skill of tree) {
+          skill.cost = this.calculateRealTimeCost(skill);
+        }
       }
     }
   }
@@ -267,14 +481,27 @@ export class SkillTree {
   unlockSkill(skillId) {
     let skill = null;
     let treeType = null;
+    let isHexGrid = false;
     
-    // 查找技能
+    // 查找技能（包括六边形网格）
     for (const [type, tree] of Object.entries(this.skills)) {
-      const found = tree.find(s => s.id === skillId);
-      if (found) {
-        skill = found;
-        treeType = type;
-        break;
+      if (type === 'wealth' && tree.type === 'hexgrid') {
+        // 六边形网格
+        const found = tree.hexes.find(h => h.id === skillId);
+        if (found) {
+          skill = found;
+          treeType = type;
+          isHexGrid = true;
+          break;
+        }
+      } else if (Array.isArray(tree)) {
+        // 普通树
+        const found = tree.find(s => s.id === skillId);
+        if (found) {
+          skill = found;
+          treeType = type;
+          break;
+        }
       }
     }
     
@@ -287,8 +514,9 @@ export class SkillTree {
     }
     
     // 检查前置条件
-    if (!this.canUnlock(skill, treeType)) {
-      alert('需要先解锁前置天赋！');
+    const canUnlock = isHexGrid ? this.canUnlockHex(skill) : this.canUnlock(skill, treeType);
+    if (!canUnlock) {
+      alert(isHexGrid ? '需要先解锁相邻的天赋！' : '需要先解锁前置天赋！');
       return;
     }
     
@@ -328,13 +556,25 @@ export class SkillTree {
   showTooltip(skillId, event) {
     let skill = null;
     let treeType = null;
+    let isHexGrid = false;
     
+    // 查找技能（包括六边形网格）
     for (const [type, tree] of Object.entries(this.skills)) {
-      const found = tree.find(s => s.id === skillId);
-      if (found) {
-        skill = found;
-        treeType = type;
-        break;
+      if (type === 'wealth' && tree.type === 'hexgrid') {
+        const found = tree.hexes.find(h => h.id === skillId);
+        if (found) {
+          skill = found;
+          treeType = type;
+          isHexGrid = true;
+          break;
+        }
+      } else if (Array.isArray(tree)) {
+        const found = tree.find(s => s.id === skillId);
+        if (found) {
+          skill = found;
+          treeType = type;
+          break;
+        }
       }
     }
     
@@ -342,8 +582,9 @@ export class SkillTree {
     
     const tooltip = document.getElementById('skill-tooltip');
     if (tooltip) {
-      const canUnlock = this.canUnlock(skill, treeType);
-      const statusText = skill.unlocked ? '✓ 已解锁' : (canUnlock ? '可解锁' : '✕ 需要前置天赋');
+      const canUnlock = isHexGrid ? this.canUnlockHex(skill) : this.canUnlock(skill, treeType);
+      const requirementText = isHexGrid ? '需要相邻天赋' : '需要前置天赋';
+      const statusText = skill.unlocked ? '✓ 已解锁' : (canUnlock ? '可解锁' : `✕ ${requirementText}`);
       const statusColor = skill.unlocked ? '#4caf50' : (canUnlock ? '#ffd700' : '#888');
       
       // ⭐ 添加引用显示支持
@@ -394,10 +635,13 @@ export class SkillTree {
 
   // 检查技能是否已解锁
   hasSkill(skillId) {
-    for (const tree of Object.values(this.skills)) {
-      const skill = tree.find(s => s.id === skillId);
-      if (skill && skill.unlocked) {
-        return true;
+    for (const [type, tree] of Object.entries(this.skills)) {
+      if (type === 'wealth' && tree.type === 'hexgrid') {
+        const hex = tree.hexes.find(h => h.id === skillId);
+        if (hex && hex.unlocked) return true;
+      } else if (Array.isArray(tree)) {
+        const skill = tree.find(s => s.id === skillId);
+        if (skill && skill.unlocked) return true;
       }
     }
     return false;
@@ -407,11 +651,19 @@ export class SkillTree {
   getUnlockedSkills() {
     const unlocked = [];
     for (const [type, tree] of Object.entries(this.skills)) {
-      tree.forEach(skill => {
-        if (skill.unlocked) {
-          unlocked.push({ ...skill, treeType: type });
-        }
-      });
+      if (type === 'wealth' && tree.type === 'hexgrid') {
+        tree.hexes.forEach(hex => {
+          if (hex.unlocked) {
+            unlocked.push({ ...hex, treeType: type });
+          }
+        });
+      } else if (Array.isArray(tree)) {
+        tree.forEach(skill => {
+          if (skill.unlocked) {
+            unlocked.push({ ...skill, treeType: type });
+          }
+        });
+      }
     }
     return unlocked;
   }
