@@ -8,6 +8,8 @@ import { SpecialEventManager } from './components/SpecialEvents.js';
 import { StorageManager } from './utils/storage.js';
 import { GameState } from './utils/gameState.js';
 import { setLanguage, getCurrentLanguage } from './data/localization.js';
+import { TraitManager } from './traits/TraitManager.js';
+import { TraitSelectionUI } from './traits/TraitSelectionUI.js';
 
 // 全局组件实例
 let mapArea;
@@ -18,6 +20,7 @@ let skillTree;
 let specialEventManager;
 let storage;
 let gameState;
+let traitManager;
 let gameLoopTimer = null; // 游戏循环定时器
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -32,8 +35,34 @@ function initApp() {
     // 检查是否需要输入明星名字（必须在渲染组件前完成）
     checkAndRequestStarName();
     
+    // 初始化特性管理器
+    traitManager = new TraitManager();
+    
+    // 显示特性选择对话框
+    showTraitSelection();
+}
+
+// 显示特性选择对话框
+function showTraitSelection() {
+    const traitUI = new TraitSelectionUI((traitId) => {
+        // 用户选择了特性后，设置特性并继续初始化
+        traitManager.setTrait(traitId);
+        continueGameInitialization();
+    });
+    
+    traitUI.show();
+}
+
+// 继续游戏初始化（特性选择后）
+function continueGameInitialization() {
     // 初始化游戏状态（传入getStarName函数供新闻系统使用）
     gameState = new GameState(() => storage.getStarName());
+    
+    // 将特性管理器传递给游戏状态
+    gameState.traitManager = traitManager;
+    
+    // 应用特性效果到游戏状态
+    traitManager.applyToGameState(gameState);
     
     // 渲染组件
     renderComponents();

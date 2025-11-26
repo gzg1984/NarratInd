@@ -17,6 +17,7 @@ export const SkillEffectTypes = {
   WEALTH_TRANSFER: 'wealth_transfer', // ⭐ 新增：财富转移修正
   COUNTER_ATTACK_SUCCESS: 'counterAttackSuccess', // ⭐ 新增：反击成功率修正
   COUNTER_ATTACK_DAMAGE: 'counterAttackDamage', // ⭐ 新增：反击伤害修正
+  REAL_HELP_BASE_GROWTH: 'real_help_base_growth', // ⭐ 新增：真实帮助基础人数修正
   POOR_TO_RICH_SPREAD: 'poor_to_rich_spread', // 已废弃，保留兼容性
   GOOD_PERSON_EFFECT: 'good_person_effect' // 已废弃，保留兼容性
 };
@@ -115,7 +116,22 @@ export class SkillEffectManager {
 
       case SkillEffectTypes.WEALTH_TRANSFER:
         // SE-COMPASSION-03: 财富转移速度减半
-        return compassionEffects.getWealthTransferModifier();
+        let wealthTransferMod = compassionEffects.getWealthTransferModifier();
+        
+        // ⭐ 慈善募捐天赋：财富转移速度×2（叠加同情天赋效果）
+        // 例如：同情×0.5 + 慈善×2 = 最终×1.0（回到基础值）
+        if (this.isSkillUnlocked('charity')) {
+          wealthTransferMod *= 2.0;
+          console.log(`💝 慈善募捐：财富转移速度×2（叠加后=${wealthTransferMod}）`);
+        }
+        
+        // ⭐ 神父天赋：财富转移速度×2（叠加以上所有效果）
+        if (this.isSkillUnlocked('s_priest')) {
+          wealthTransferMod *= 2.0;
+          console.log(`✝️ 神父：财富转移速度×2（叠加后=${wealthTransferMod}）`);
+        }
+        
+        return wealthTransferMod;
 
       case SkillEffectTypes.COUNTER_ATTACK_SUCCESS:
         // SE-COMPASSION-04: 低财富时反击成功率翻倍
@@ -124,6 +140,10 @@ export class SkillEffectManager {
       case SkillEffectTypes.COUNTER_ATTACK_DAMAGE:
         // SE-COMPASSION-05: 低财富时反击伤害翻倍
         return compassionEffects.getCounterAttackDamageModifier();
+
+      case SkillEffectTypes.REAL_HELP_BASE_GROWTH:
+        // SE-COMPASSION-06: 真实帮助基础人数修正
+        return compassionEffects.getRealHelpBaseGrowthModifier();
 
       // 以下为已废弃的效果类型，保留用于兼容性
       case SkillEffectTypes.POOR_TO_RICH_SPREAD:

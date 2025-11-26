@@ -43,17 +43,17 @@ export class SkillTree {
           
           // Layer 3 - 外围（12个）
           { id: 'tithe', name: '十一税', icon: '📜', q: 2, r: 0, layer: 3, cost: 100, baseCost: 100, unlocked: false,
-            desc: '每回合从信徒获得财富', adjacentTo: ['jizya'] },
-          { id: 'forced_labor', name: '义务劳动', icon: '⚒️', q: 2, r: -1, layer: 3, cost: 100, baseCost: 100, unlocked: false,
-            desc: '强制信徒劳动获得财富', adjacentTo: ['jizya', 'confiscate'] },
-          { id: 'charity', name: '慈善募捐', icon: '🎗️', q: 1, r: -2, layer: 3, cost: 100, baseCost: 100, unlocked: false,
-            desc: '以慈善名义募集财富', adjacentTo: ['confiscate'] },
+            desc: '每回合从信徒获得财富', adjacentTo: ['jizya', 'forced_labor'] },
+          { id: 'forced_labor', name: '义务劳动', icon: '⚒️', q: 1, r: -2, layer: 3, cost: 100, baseCost: 100, unlocked: false,
+            desc: '强制信徒劳动获得财富', adjacentTo: ['confiscate'] },
+          { id: 'relic', name: '圣物交易', icon: '💎', q: -2, r: 0, layer: 3, cost: 100, baseCost: 100, unlocked: false,
+            desc: '售卖圣物获得财富', adjacentTo: ['charity', 'inquisition'] },
           { id: 'indulgence', name: '赎罪券', icon: '📃', q: 0, r: -2, layer: 3, cost: 100, baseCost: 100, unlocked: false,
             desc: '出售赎罪券获得财富', adjacentTo: ['slavery', 'confiscate'] },
           { id: 'pilgrimage', name: '朝圣税', icon: '🕌', q: -1, r: -1, layer: 3, cost: 100, baseCost: 100, unlocked: false,
             desc: '向朝圣者收取税金', adjacentTo: ['slavery'] },
-          { id: 'relic', name: '圣物交易', icon: '💎', q: -2, r: 0, layer: 3, cost: 100, baseCost: 100, unlocked: false,
-            desc: '售卖圣物获得财富', adjacentTo: ['inquisition', 'slavery'] },
+          { id: 'charity', name: '慈善募捐', icon: '🎗️', q: -3, r: 0, layer: 3, cost: 0, baseCost: 0, unlocked: false,
+            desc: '财富<10时真实帮助概率×2，富国再×2；财富转移速度×2', adjacentTo: [] },
           { id: 'blessing', name: '祝福收费', icon: '✨', q: -2, r: 1, layer: 3, cost: 100, baseCost: 100, unlocked: false,
             desc: '为信徒祝福收费', adjacentTo: ['inquisition'] },
           { id: 'monastery', name: '修道院产业', icon: '🏛️', q: -1, r: 2, layer: 3, cost: 100, baseCost: 100, unlocked: false,
@@ -76,22 +76,22 @@ export class SkillTree {
         { id: 'original_sin', name: originalSinDesc.name, icon: '⛓️', cost: 0, baseCost: 0, unlocked: false, x: 50, y: 30, tier: 1,
           desc: originalSinDesc.description,
           quote: originalSinQuote },
-        { id: 's_logic', name: '逻辑', cost: 0, baseCost: 0, unlocked: false, x: 80, y: 30, tier: 1,
-          desc: '提高"帮助到人"概率，信徒翻倍，提高国家财富' },
+        { id: 's_aesthetics', name: '美学', icon: '🎨', cost: 0, baseCost: 0, unlocked: false, x: 80, y: 30, tier: 1,
+          desc: '所有传播事件×2；富裕地区再×2；教团财富>10时再×2；信徒>50%国家的财富转移速度×2' },
         
         // Tier 2
         { id: 's_slavery', name: '奴隶制', cost: 1000, baseCost: 1000, unlocked: false, x: 50, y: 80, tier: 2,
           requires: ['original_sin'], desc: '富国向穷国传播概率增加' },
-        { id: 's_refugee', name: '难民', cost: 1000, baseCost: 1000, unlocked: false, x: 20, y: 80, tier: 2,
-          requires: ['compassion'], desc: '穷国向富国传播，拉低富国财富' },
+        { id: 's_priest', name: '神父', icon: '✝️', cost: 2, baseCost: 2, unlocked: false, x: 20, y: 80, tier: 2,
+          requires: ['compassion', 'original_sin'], desc: '所有传播概率×2，财富转移×2但国家财富消耗×2；信徒>5%国家的好人事件自动触发' },
         { id: 's_dogma', name: '教条', cost: 1000, baseCost: 1000, unlocked: false, x: 80, y: 80, tier: 2,
-          requires: ['s_logic'], desc: '提高"不满"和"主动传播"，信徒翻倍' },
+          requires: ['s_aesthetics'], desc: '提高"不满"和"主动传播"，信徒翻倍' },
         
         // Tier 3
-        { id: 's_progress', name: '进步主义', cost: 10000, baseCost: 10000, unlocked: false, x: 65, y: 130, tier: 3,
-          requires: ['s_dogma', 's_slavery'], desc: '富国极高概率"主动传播"，信徒翻倍' },
+        { id: 's_progress', name: '进步主义', cost: 4, baseCost: 4, unlocked: false, x: 65, y: 130, tier: 3,
+          requires: ['s_priest', 's_aesthetics'], desc: '所有传播×4，反对者概率-90%，反击成功率+50%，好人可从脱教者转化，财富转移-10%' },
         { id: 's_conspiracy', name: '阴谋论', cost: 10000, baseCost: 10000, unlocked: false, x: 35, y: 130, tier: 3,
-          requires: ['s_slavery', 's_refugee'], desc: '所有国家提高"不满"概率，信徒翻倍' },
+          requires: ['s_slavery', 's_priest'], desc: '所有国家提高"不满"概率，信徒翻倍' },
         { id: 's_family', name: '家族传播', cost: 10000, baseCost: 10000, unlocked: false, x: 80, y: 130, tier: 3,
           requires: ['s_dogma'], desc: '降低"主动传播"和"不满"，大幅提高"帮助到人"，增加财富' },
         
@@ -101,7 +101,7 @@ export class SkillTree {
         { id: 's_divide', name: '割裂', cost: 100000, baseCost: 100000, unlocked: false, x: 45, y: 180, tier: 4,
           requires: ['s_conspiracy'], desc: '信徒>50%地区削减财富' },
         { id: 's_replace', name: '替换', cost: 100000, baseCost: 100000, unlocked: false, x: 75, y: 180, tier: 4,
-          requires: ['s_conspiracy', 's_family', 's_dogma', 's_refugee'], 
+          requires: ['s_conspiracy', 's_family', 's_dogma', 's_priest', 's_aesthetics'], 
           desc: '信徒<50%地区削减财富，更高概率"主动传播"，信徒翻倍' }
       ],
       trait: [
@@ -348,11 +348,16 @@ export class SkillTree {
         bgColor = '#4caf50'; // 绿色-已解锁
         borderColor = '#2e7d32';
       } else if (this.canUnlockHex(hex)) {
-        // 根据层级设置可解锁颜色
-        if (hex.layer === 3) bgColor = '#90a4ae'; // 外围-灰蓝
-        else if (hex.layer === 2) bgColor = '#ff9800'; // 中层-橙色
-        else bgColor = '#c62828'; // 核心-红色
-        borderColor = '#1976d2';
+        // ⭐ 可解锁状态：检查财富是否足够
+        const realTimeCost = this.calculateRealTimeCost(hex);
+        const currentWealth = this.getWealth();
+        const canAfford = currentWealth >= realTimeCost;
+        
+        // 背景色始终为灰色
+        bgColor = '#90a4ae';
+        
+        // ⭐ 边框颜色：财富足够=绿色，不足=红色
+        borderColor = canAfford ? '#4caf50' : '#f44336';
       } else {
         bgColor = '#424242'; // 深灰-未解锁
         borderColor = '#616161';
@@ -452,13 +457,16 @@ export class SkillTree {
   // 解锁技能
   /**
    * ⭐ 计算天赋的实时价格
-   * 公式：实时价格 = 基础价格 + (已解锁天赋数 × 2 × 天赋层级)
+   * 公式：实时价格 = 基础价格 + (已解锁天赋数 × 动态乘数 × 天赋层级)
+   * 动态乘数：解锁<5个天赋时为1，≥5个天赋时为2
    */
   calculateRealTimeCost(skill) {
     if (!skill.baseCost && skill.baseCost !== 0) {
       skill.baseCost = skill.cost; // 兼容旧数据
     }
-    return skill.baseCost + (this.unlockedSkillsCount * 2 * (skill.tier || 1));
+    // ⭐ 动态乘数：前5个天赋×1，之后×2
+    const dynamicMultiplier = this.unlockedSkillsCount < 5 ? 1 : 2;
+    return skill.baseCost + (this.unlockedSkillsCount * dynamicMultiplier * (skill.tier || 1));
   }
 
   /**

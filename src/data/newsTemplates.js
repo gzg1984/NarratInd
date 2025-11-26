@@ -98,6 +98,15 @@ export const newsTemplates = {
     '{media}：{country}反对派获胜，{religion}信徒大规模流失。'
   ],
   
+  // ⭐ 神父天赋：反对者批评神父特权阶级
+  opponent_priest_critique: [
+    '{media}：{person}对{country}{religion}提出的质疑是，它的神父群体已经形成了事实上的特权阶级，背离了它宗教创立的初衷。',
+    '{media}：{person}在{country}公开抨击{religion}神父阶层腐败，引发广泛讨论。',
+    '{media}：{person}指出{country}{religion}的神父已经成为新的贵族，远离了原始教义。',
+    '{media}：{person}批评{religion}神父群体在{country}形成垄断，背离了平等理念。',
+    '{media}：{person}质疑{country}{religion}神父阶层的道德合法性，呼吁回归教义本质。'
+  ],
+  
   // ⭐ 新增：反对者抵抗成功事件（点击失败2次+完成传播）
   opponent_resist: [
     '{media}：即使面对{religion}的抹黑，{person}依然成功宣扬了他的观点，引发了大家对{religion}的思考。',

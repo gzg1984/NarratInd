@@ -164,6 +164,29 @@ export function shouldUseLowWealthKillNews() {
 }
 
 /**
+ * SE-COMPASSION-06: 真实帮助基础人数增强
+ * 财富 < 10: 基础人数 × 10（贫穷时帮助效果显著）
+ * 财富 > 10: 基础人数 × 0.5（富裕时帮助效果减弱）
+ * 
+ * @returns {number} 真实帮助基础人数修正系数
+ */
+export function getRealHelpBaseGrowthModifier() {
+  const wealth = gameStateRef ? gameStateRef.wealth || 0 : 0;
+  
+  if (wealth < 10) {
+    // 贫穷时，真实帮助效果显著（50人 → 500人）
+    return 10.0;
+  }
+  
+  if (wealth > 10) {
+    // 富裕时，真实帮助效果减弱（50人 → 25人）
+    return 0.5;
+  }
+  
+  return 1.0;
+}
+
+/**
  * 重置财富状态追踪（用于新游戏或测试）
  */
 export function resetWealthTracking() {

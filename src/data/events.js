@@ -16,6 +16,30 @@ import { getEventConfig, getBelieverRatioMultiplier } from './gameConfig.js';
 export const eventTypes = {
   // === 基础事件 ===
   
+  base_spread: {
+    id: 'base_spread',
+    name: '基础传播',
+    
+    calculate: (country, skillTree) => {
+      // 100% 触发
+      
+      // 信徒数量+50%
+      let growth = Math.ceil(country.believers * 0.5);
+      
+      // ⭐ 上限：不能超过国家总人口的0.5%
+      const maxGrowth = Math.ceil(country.population * 0.005);
+      growth = Math.min(growth, maxGrowth);
+      
+      // 最少保证1人
+      const believers = Math.max(1, growth);
+      
+      return {
+        triggered: true,
+        believers: believers
+      };
+    }
+  },
+  
   self_spread: {
     id: 'self_spread',
     name: '自发传播',
@@ -67,9 +91,35 @@ export const eventTypes = {
         chance *= spreadModifier;
       }
       
+      // ⭐ s_priest: 神父 - 所有传播概率×2
+      if (skillTree.hasSkill('s_priest')) {
+        chance *= 2.0;
+      }
+      
+      // ⭐ s_aesthetics: 美学 - 所有地区×2，富裕地区再×2，教团财富>10再×2
+      if (skillTree.hasSkill('s_aesthetics')) {
+        chance *= 2.0; // 基础×2
+        if (isWealthyCountry(country)) {
+          chance *= 2.0; // 富裕地区再×2
+        }
+        if (gameState && gameState.wealth > 10) {
+          chance *= 2.0; // 教团财富>10再×2
+        }
+      }
+      
+      // ⭐ s_progress: 进步主义 - 所有传播×4
+      if (skillTree.hasSkill('s_progress')) {
+        chance *= 4.0;
+      }
+      
       // s_chosen: 神选 - 富国更高概率，信徒翻倍
+      if (skillTree.hasSkill('s_priest')) {
+        chance *= 2.0;
+      }
+      
+      // s_chosen: 神选 - 富国更高概率
       if (skillTree.hasSkill('s_chosen') && isWealthyCountry(country)) {
-        chance *= 2.0; // 富国概率翻倍（抵消财富惩罚）
+        chance *= 2.0; // 概率翻倍
         effectMultiplier *= 2; // 效果翻倍
       }
       
@@ -209,6 +259,17 @@ export const eventTypes = {
       
       // === 3. 基础效果 ===
       let believers = config.baseGrowth; // 固定基础增长
+      
+      // ⭐ 同情天赋：真实帮助基础人数修正（SE-COMPASSION-06）
+      let hasCompassionBonus = false;
+      if (gameState && gameState.getSkillModifier) {
+        const realHelpModifier = gameState.getSkillModifier('real_help_base_growth');
+        if (realHelpModifier > 1.0) {
+          hasCompassionBonus = true;
+        }
+        believers = Math.ceil(believers * realHelpModifier);
+      }
+      
       let wealthChange = 0;
       
       // === 4. 信徒占比影响效果 ===
@@ -232,11 +293,40 @@ export const eventTypes = {
         chance *= spreadModifier;
       }
       
-      // s_logic: 逻辑 - 提高概率、效果和财富
-      if (skillTree.hasSkill('s_logic')) {
+      // ⭐ s_priest: 神父 - 所有传播概率×2
+      if (skillTree.hasSkill('s_priest')) {
         chance *= 2.0;
-        effectMultiplier *= 2;
-        wealthChange = Math.floor(believers * effectMultiplier * 0.1);
+      }
+      
+      // ⭐ s_aesthetics: 美学 - 所有地区×2，富裕地区再×2，教团财富>10再×2
+      if (skillTree.hasSkill('s_aesthetics')) {
+        chance *= 2.0; // 基础×2
+        if (isWealthyCountry(country)) {
+          chance *= 2.0; // 富裕地区再×2
+        }
+        if (gameState && gameState.wealth > 10) {
+          chance *= 2.0; // 教团财富>10再×2
+        }
+      }
+      
+      // ⭐ s_progress: 进步主义 - 所有传播×4
+      if (skillTree.hasSkill('s_progress')) {
+        chance *= 4.0;
+      }
+      
+      // ⭐ charity: 慈善募捐 - 低财富时真实帮助概率翻倍，富裕国家再翻倍
+      if (skillTree.hasSkill('charity')) {
+        const currentWealth = gameState ? gameState.wealth : 10;
+        if (currentWealth < 10) {
+          chance *= 2.0; // 低财富时概率×2
+          console.log(`💝 慈善募捐：低财富(${currentWealth})真实帮助概率×2`);
+        }
+        
+        // 富裕国家（GDP>80%原始值）再翻倍
+        if (gdpRatio > 0.8) {
+          chance *= 2.0;
+          console.log(`💝 慈善募捐：富裕国家(GDP ${(gdpRatio*100).toFixed(0)}%)真实帮助概率再×2`);
+        }
       }
       
       // s_family: 家族传播 - 大幅提高概率和财富
@@ -248,9 +338,19 @@ export const eventTypes = {
       
       // === 7. 概率检测 ===
       if (Math.random() < chance) {
+        let finalBelievers = Math.ceil(believers * effectMultiplier);
+        
+        // ⭐ 同情天赋：真实帮助叠加一次自我传播（SE-COMPASSION-07）
+        if (hasCompassionBonus) {
+          const selfSpreadConfig = getEventConfig('selfSpread');
+          const selfSpreadGrowth = Math.ceil(country.believers * selfSpreadConfig.baseGrowthRate);
+          finalBelievers += selfSpreadGrowth;
+          console.log(`⭐ 同情天赋增强：真实帮助 ${Math.ceil(believers * effectMultiplier)} + 自我传播 ${selfSpreadGrowth} = ${finalBelievers}`);
+        }
+        
         return {
           triggered: true,
-          believers: Math.ceil(believers * effectMultiplier),
+          believers: finalBelievers,
           wealthChange: wealthChange
         };
       }
@@ -297,6 +397,27 @@ export const eventTypes = {
       if (gameState && gameState.getSkillModifier) {
         const spreadModifier = gameState.getSkillModifier('spread_probability');
         chance *= spreadModifier;
+      }
+      
+      // ⭐ s_priest: 神父 - 所有传播概率×2
+      if (skillTree.hasSkill('s_priest')) {
+        chance *= 2.0;
+      }
+      
+      // ⭐ s_aesthetics: 美学 - 所有地区×2，富裕地区再×2，教团财富>10再×2
+      if (skillTree.hasSkill('s_aesthetics')) {
+        chance *= 2.0; // 基础×2
+        if (isWealthyCountry(country)) {
+          chance *= 2.0; // 富裕地区再×2
+        }
+        if (gameState && gameState.wealth > 10) {
+          chance *= 2.0; // 教团财富>10再×2
+        }
+      }
+      
+      // ⭐ s_progress: 进步主义 - 所有传播×4
+      if (skillTree.hasSkill('s_progress')) {
+        chance *= 4.0;
       }
       
       // s_slavery: 奴隶制 - 富国向穷国传播概率增加

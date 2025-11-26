@@ -2,6 +2,23 @@
 
 import { canSpawnOpponentInCountry, getOpponentStrengthModifiers } from '../data/difficultyConfig.js';
 
+// 日志级别配置
+const LOG_LEVELS = {
+  ERROR: 0,   // 只显示错误
+  WARN: 1,    // 显示警告和错误
+  INFO: 2,    // 显示重要信息
+  DEBUG: 3    // 显示所有调试信息
+};
+const CURRENT_LOG_LEVEL = LOG_LEVELS.INFO; // 默认INFO级别
+
+// 日志辅助函数
+const log = {
+  error: (...args) => console.error(...args),
+  warn: (...args) => CURRENT_LOG_LEVEL >= LOG_LEVELS.WARN && console.log(...args),
+  info: (...args) => CURRENT_LOG_LEVEL >= LOG_LEVELS.INFO && console.log(...args),
+  debug: (...args) => CURRENT_LOG_LEVEL >= LOG_LEVELS.DEBUG && console.log(...args)
+};
+
 /**
  * 特殊事件类型定义
  */
@@ -21,35 +38,73 @@ export const SpecialEventTypes = {
     effect: async (country, gameState, eventData) => {
       // ⭐ 使用eventData中保存的荆棘王冠标记（在spawn时已确定）
       const isCrownedVersion = eventData?.isCrownedGoodPerson || false;
-      const effectMultiplier = isCrownedVersion ? 2.0 : 1.0;
+      let effectMultiplier = isCrownedVersion ? 2.0 : 1.0;
       const canConvertApostates = isCrownedVersion;
       
-      // 效果：等于3次"信徒的主动传播"
-      const module = await import('../data/gameConfig.js');
-      const config = module.getEventConfig('selfSpread');
+      // ⭐ 进步主义：检查是否是脱教者转化模式
+      const hasProgress = gameState?.skillTree?.hasSkill('s_progress');
+      const believers = country.believers || 0;
+      const apostates = country.apostates || 0;
+      const totalConverted = believers + apostates;
+      const isProgressConversion = hasProgress && totalConverted >= country.population && apostates > 0;
       
-      // 计算3次传播的效果
-      let totalBelievers = 0;
-      for (let i = 0; i < 3; i++) {
-        const baseGrowth = Math.ceil(country.believers * config.baseGrowthRate);
-        totalBelievers += baseGrowth;
+      if (isProgressConversion) {
+        effectMultiplier *= 0.5; // 从脱教者转化时效果减半
+        log.info(`🎓 进步主义：脱教者转化模式，效果×0.5`);
       }
       
-      // ⭐ 应用天赋效果倍数
+      // ⭐ 基础效果：从真实帮助事件计算
+      const configModule = await import('../data/gameConfig.js');
+      const realHelpConfig = configModule.getEventConfig('realHelp');
+      const selfSpreadConfig = configModule.getEventConfig('selfSpread');
+      
+      // 1. 计算真实帮助的基础人数（应用同情天赋修正）
+      let baseRealHelp = realHelpConfig.baseGrowth;
+      let hasCompassionBonus = false;
+      if (gameState && gameState.getSkillModifier) {
+        const realHelpModifier = gameState.getSkillModifier('real_help_base_growth');
+        if (realHelpModifier > 1.0) {
+          hasCompassionBonus = true;
+        }
+        baseRealHelp = Math.ceil(baseRealHelp * realHelpModifier);
+      }
+      
+      // 2. 计算3次自我传播
+      let selfSpreadTotal = 0;
+      for (let i = 0; i < 3; i++) {
+        const baseGrowth = Math.ceil(country.believers * selfSpreadConfig.baseGrowthRate);
+        selfSpreadTotal += baseGrowth;
+      }
+      
+      // 3. 总人数 = 真实帮助 + 3次自我传播
+      let totalBelievers = baseRealHelp + selfSpreadTotal;
+      
+      // 4. ⭐ 同情天赋：额外叠加一次自我传播（SE-COMPASSION-07）
+      if (hasCompassionBonus) {
+        const bonusSelfSpread = Math.ceil(country.believers * selfSpreadConfig.baseGrowthRate);
+        totalBelievers += bonusSelfSpread;
+        console.log(`⭐ 好人事件同情增强：真实帮助${baseRealHelp} + 3次传播${selfSpreadTotal} + 同情额外${bonusSelfSpread} = ${totalBelievers}`);
+      }
+      
+      // 5. ⭐ 应用荆棘王冠倍数
       totalBelievers = Math.ceil(totalBelievers * effectMultiplier);
       
-      // ⭐ 荆棘王冠版本：优先转化脱教者
+      // ⭐ 荆棘王冠版本或进步主义：优先转化脱教者
       let apostatesConverted = 0;
-      if (canConvertApostates && country.apostates > 0) {
+      if ((canConvertApostates || isProgressConversion) && country.apostates > 0) {
         apostatesConverted = Math.min(totalBelievers, country.apostates);
         country.apostates -= apostatesConverted;
-        console.log(`👑 荆棘王冠版本：转化${apostatesConverted}脱教者`);
+        if (isProgressConversion) {
+          console.log(`🎓 进步主义：转化${apostatesConverted}脱教者`);
+        } else {
+          console.log(`👑 荆棘王冠版本：转化${apostatesConverted}脱教者`);
+        }
       }
       
       // 应用效果
       const oldBelievers = country.believers;
-      const apostates = country.apostates || 0;
-      const maxBelievers = country.population - apostates;
+      const currentApostates = country.apostates || 0;
+      const maxBelievers = country.population - currentApostates;
       country.believers = Math.min(country.believers + totalBelievers, maxBelievers);
       const actualIncrease = country.believers - oldBelievers;
       gameState.totalBelievers += actualIncrease;
@@ -117,10 +172,17 @@ export const SpecialEventTypes = {
       if (compassionSuccessModifier > 1) {
         successRate *= compassionSuccessModifier;
         successRate = Math.min(successRate, 0.98); // 提高上限到98%
-        console.log(`🌿 同情天赋：反击成功率×${compassionSuccessModifier}`);
+        log.debug(`🌿 同情天赋：反击成功率×${compassionSuccessModifier}`);
       }
       
-      console.log(`🎯 点击反对者: ${country.id}, 成功率${(successRate*100).toFixed(1)}%${eventData.isInvading ? ' [侵略中]' : ''}`);
+      // ⭐ s_progress: 进步主义 - 反击成功率+50%
+      if (gameState.skillTree && gameState.skillTree.hasSkill('s_progress')) {
+        successRate += 0.5;
+        successRate = Math.min(successRate, 0.98); // 上限98%
+        log.info(`🎓 进步主义：反击成功率+50%`);
+      }
+      
+      log.debug(`🎯 点击反对者: ${country.id}, 成功率${(successRate*100).toFixed(1)}%${eventData.isInvading ? ' [侵略中]' : ''}`);
       
       // 初始化点击计数器
       if (!eventData.totalClicks) eventData.totalClicks = 0;
@@ -136,7 +198,7 @@ export const SpecialEventTypes = {
         eventData.health += 1;
         eventData.maxHealth += 1;
         
-        console.log(`❌ 点击失败！(累计${eventData.failedClicks}次) 血量+1 → ${eventData.health}/${eventData.maxHealth}`);
+        log.debug(`❌ 点击失败！(累计${eventData.failedClicks}次) 血量+1 → ${eventData.health}/${eventData.maxHealth}`);
         
         // ⭐ 不立即记录opponent_resist，等timeout时判断
         
@@ -153,12 +215,12 @@ export const SpecialEventTypes = {
       const compassionDamageModifier = gameState.getSkillModifier('counterAttackDamage');
       if (compassionDamageModifier > 1) {
         damage *= compassionDamageModifier;
-        console.log(`🌿 同情天赋：反击伤害×${compassionDamageModifier} → ${damage}`);
+        log.debug(`🌿 同情天赋：反击伤害×${compassionDamageModifier} → ${damage}`);
       }
       
       eventData.health -= damage;
       
-      console.log(`✅ 造成${damage}伤害，剩余${eventData.health}血`);
+      log.debug(`✅ 造成${damage}伤害，剩余${eventData.health}血`);
       
       // 记录反对者点击成功新闻（玩家成功抹黑/禁言）
       gameState.newsSystem.recordEvent('opponent_click_success', {
@@ -203,15 +265,26 @@ export const SpecialEventTypes = {
           message: randomMessage
         };
       } else {
-        // 仅造成伤害，检查是否转移
-        const successMessages = ['禁言！', '抹黑！', '栽赃！'];
+        // ⭐ 造成伤害，但未完全摧毁 → 暂时消失，保留血量，后续会再次出现
+        const successMessages = ['禁言', '抹黑', '栽赃'];
         const randomMessage = successMessages[Math.floor(Math.random() * successMessages.length)];
+        const philosopherName = eventData.philosopherName || '反对者';
+        
+        // ⭐ 设置冷却期：基础5回合 + 失败点击次数
+        const philosopher = eventData.philosopher;
+        if (philosopher) {
+          const failedClicks = eventData.failedClicks || 0;
+          const cooldownTurns = 5 + failedClicks;
+          philosopher.retreatUntilTurn = gameState.currentTurn + cooldownTurns;
+          console.log(`🔄 ${philosopherName}暂时撤退，剩余${eventData.health}血，冷却${cooldownTurns}回合（至第${philosopher.retreatUntilTurn}回合）`);
+        }
         
         return {
           success: true,
-          destroyed: false,
+          destroyed: true, // ⭐ 改为true，让它立即消失
+          temporaryRetreat: true, // ⭐ 标记这是暂时撤退，不是完全摧毁
           health: eventData.health,
-          message: `${randomMessage} -${damage}HP`,
+          message: `${philosopherName}被${randomMessage}，生命值-${damage}，剩余${eventData.health}`,
           shouldMigrate: true // 标记可能需要转移（在handleEventClick中处理）
         };
       }
@@ -299,11 +372,22 @@ export const SpecialEventTypes = {
           console.log(`📰 触发反对者抵抗新闻 [级别2]: ${eventData.philosopherName} (玩家失败${eventData.failedClicks}次)`);
         }
       } else {
-        // 否则只记录普通的opponent_timeout（级别1）
-        gameState.newsSystem.recordEvent('opponent_timeout', {
-          countryId: country.id,
-          philosopherName: eventData.philosopherName
-        });
+        // ⭐ 神父天赋：使用特殊新闻模板批评神父特权阶级
+        const hasPriestSkill = gameState.skillTree && gameState.skillTree.hasSkill('s_priest');
+        
+        if (hasPriestSkill) {
+          gameState.newsSystem.recordEvent('opponent_priest_critique', {
+            countryId: country.id,
+            philosopherName: eventData.philosopherName
+          });
+          console.log(`📰 触发神父批评新闻 [级别1]: ${eventData.philosopherName}`);
+        } else {
+          // 普通的opponent_timeout（级别1）
+          gameState.newsSystem.recordEvent('opponent_timeout', {
+            countryId: country.id,
+            philosopherName: eventData.philosopherName
+          });
+        }
       }
       
       return {
@@ -432,6 +516,12 @@ export class SpecialEventManager {
           console.log(`🚫 ${p.name} 仍在禁用期（剩余${remainingTurns}回合）`);
           return false;
         }
+        // ⭐ 过滤掉冷却期内的（暂时撤退）
+        if (p.retreatUntilTurn && gameState.currentTurn < p.retreatUntilTurn) {
+          const remainingTurns = p.retreatUntilTurn - gameState.currentTurn;
+          console.log(`⏳ ${p.name} 仍在冷却期（剩余${remainingTurns}回合）`);
+          return false;
+        }
         return true;
       });
     
@@ -446,14 +536,16 @@ export class SpecialEventManager {
     if (this.activePhilosophers.size >= philosopherLimit) {
       // 如果没有可用的哲学家（所有哲学家都在显示或被禁用）
       if (availablePhilosophers.length === 0) {
-        // ⭐ 统计被禁用的哲学家数量
+        // ⭐ 统计被禁用和冷却期的哲学家数量
         const disabledCount = Array.from(this.activePhilosophers.values())
           .filter(p => p.disabledUntilTurn && gameState.currentTurn < p.disabledUntilTurn).length;
+        const retreatingCount = Array.from(this.activePhilosophers.values())
+          .filter(p => p.retreatUntilTurn && gameState.currentTurn < p.retreatUntilTurn).length;
         
-        if (disabledCount > 0) {
-          console.log(`⚠️ 无法生成新事件：${disabledCount}个哲学家被禁用中，${activePhilosopherIds.size}个正在显示 (上限${philosopherLimit})`);
+        if (disabledCount > 0 || retreatingCount > 0) {
+          log.debug(`⚠️ 无法生成新事件：${disabledCount}个哲学家被禁用中，${retreatingCount}个在冷却期，${activePhilosopherIds.size}个正在显示 (上限${philosopherLimit})`);
         } else {
-          console.log(`🚫 所有哲学家都在显示中，无法生成新事件 (${activePhilosopherIds.size}/${philosopherLimit})`);
+          log.debug(`🚫 所有哲学家都在显示中，无法生成新事件 (${activePhilosopherIds.size}/${philosopherLimit})`);
         }
         return null;
       }
@@ -462,22 +554,25 @@ export class SpecialEventManager {
       return philosopher;
     }
     
-    // ⭐ 创建新哲学家，避免使用被禁用哲学家的名字
+    // ⭐ 创建新哲学家，避免使用被禁用或冷却期哲学家的名字
     const philosophersModule = await import('../data/philosophers.js');
     
-    // 获取所有被禁用的哲学家名字
-    const disabledNames = new Set();
+    // 获取所有被禁用或冷却期的哲学家名字
+    const unavailableNames = new Set();
     for (const p of this.activePhilosophers.values()) {
       if (p.disabledUntilTurn && gameState.currentTurn < p.disabledUntilTurn) {
-        disabledNames.add(p.name);
+        unavailableNames.add(p.name);
+      }
+      if (p.retreatUntilTurn && gameState.currentTurn < p.retreatUntilTurn) {
+        unavailableNames.add(p.name);
       }
     }
     
-    // 尝试获取一个未被禁用的哲学家名字（最多尝试10次）
+    // 尝试获取一个可用的哲学家名字（最多尝试10次）
     let philosopherInfo;
     for (let i = 0; i < 10; i++) {
       const candidate = philosophersModule.getRandomPhilosopher();
-      if (!disabledNames.has(candidate.name)) {
+      if (!unavailableNames.has(candidate.name)) {
         philosopherInfo = candidate;
         break;
       }
@@ -486,7 +581,7 @@ export class SpecialEventManager {
     // 如果10次都没找到（理论上不太可能，哲学家列表很长），就用最后一个
     if (!philosopherInfo) {
       philosopherInfo = philosophersModule.getRandomPhilosopher();
-      console.log(`⚠️ 无法避免使用被禁用名字，强制使用: ${philosopherInfo.name}`);
+      console.log(`⚠️ 无法避免使用被禁用/冷却名字，强制使用: ${philosopherInfo.name}`);
     }
     
     // 根据国家财富等级计算初始血量
@@ -784,8 +879,10 @@ export class SpecialEventManager {
     const activePhilosopherIds = this.getActivePhilosopherIds();
     const disabledCount = Array.from(this.activePhilosophers.values())
       .filter(p => p.disabledUntilTurn && this.gameState.currentTurn < p.disabledUntilTurn).length;
+    const retreatingCount = Array.from(this.activePhilosophers.values())
+      .filter(p => p.retreatUntilTurn && this.gameState.currentTurn < p.retreatUntilTurn).length;
     
-    console.log(`🎭 检查事件... 已感染国家数: ${infectedCountries.length}, 活跃事件: ${this.activeEvents.size}, 哲学家: ${totalPhilosophers}(显示中:${activePhilosopherIds.size}, 禁用:${disabledCount})`);
+    log.debug(`🎭 检查事件... 已感染国家数: ${infectedCountries.length}, 活跃事件: ${this.activeEvents.size}, 哲学家: ${totalPhilosophers}(显示中:${activePhilosopherIds.size}, 禁用:${disabledCount}, 冷却:${retreatingCount})`);
     
     if (infectedCountries.length === 0) {
       console.log('🎭 没有已感染国家');
@@ -836,7 +933,7 @@ export class SpecialEventManager {
       
       // 好人等事件使用maxGlobalInstances
       if (eventType.maxGlobalInstances && currentInstances >= eventType.maxGlobalInstances) {
-        console.log(`🚫 事件 ${eventType.name} 已达上限 (${currentInstances}/${eventType.maxGlobalInstances})`);
+        log.debug(`🚫 事件 ${eventType.name} 已达上限 (${currentInstances}/${eventType.maxGlobalInstances})`);
         continue;
       }
       
@@ -844,7 +941,7 @@ export class SpecialEventManager {
       for (const country of infectedCountries) {
         // 全局事件上限再检查（防止循环中新增）
         if (this.activeEvents.size >= MAX_TOTAL_EVENTS) {
-          console.log(`🚫 生成事件时达到全局上限`);
+          log.debug(`🚫 生成事件时达到全局上限`);
           return;
         }
         
@@ -869,9 +966,22 @@ export class SpecialEventManager {
           const modifier = gameState.getSkillModifier('opponent_probability');
           probability *= modifier;
           
+          // ⭐ 全球信徒比率影响：80%时概率为基础值，0%时概率为0
+          const globalBelieverRatio = gameState.totalBelievers / gameState.totalPopulation;
+          const globalRatioMultiplier = globalBelieverRatio / 0.8; // 80%时为1.0，0%时为0
+          probability *= globalRatioMultiplier;
+          
+          // ⭐ s_progress: 进步主义 - 反对者概率-90%
+          if (gameState.skillTree && gameState.skillTree.hasSkill('s_progress')) {
+            probability *= 0.1; // 降低90%
+            log.info(`🎓 进步主义：反对者概率×0.1（-90%）`);
+          }
+          
           // ⭐ 应用难度修正
           const difficultyModifiers = getOpponentStrengthModifiers();
           probability *= difficultyModifiers.probabilityMultiplier;
+          
+          console.log(`📊 反对者概率调整: 全球信徒${(globalBelieverRatio*100).toFixed(1)}% → ×${globalRatioMultiplier.toFixed(2)}`);
         }
         
         console.log(`🎲 检查特殊事件 ${eventType.name} 在 ${country.id} (概率: ${probability})`);
@@ -894,6 +1004,28 @@ export class SpecialEventManager {
     // 检查信徒占比范围
     const ratio = country.believers / country.population;
     if (eventType.minBelieverRatio && ratio < eventType.minBelieverRatio) return false;
+    
+    // ⭐ 好人事件特殊逻辑：进步主义天赋
+    if (eventType.id === 'good_person' && this.gameState && this.gameState.skillTree && this.gameState.skillTree.hasSkill('s_progress')) {
+      // 检查是否所有居民都是信徒或脱教者
+      const believers = country.believers || 0;
+      const apostates = country.apostates || 0;
+      const totalConverted = believers + apostates;
+      
+      log.debug(`🎓 进步主义检查 ${country.id}: 信徒=${believers}, 脱教=${apostates}, 总人口=${country.population}, 占比=${ratio.toFixed(2)}`);
+      
+      if (totalConverted >= country.population && apostates > 0) {
+        // 50%概率允许触发（从脱教者转化）
+        const shouldTrigger = Math.random() < 0.5;
+        log.info(`🎓 进步主义：${country.id}满足条件（脱教者${apostates}），${shouldTrigger ? '允许' : '未'}触发脱教者转化`);
+        if (shouldTrigger) {
+          return true; // 跳过maxBelieverRatio和其他检查，直接允许触发
+        } else {
+          return false; // 50%概率未触发，不允许好人事件
+        }
+      }
+    }
+    
     if (eventType.maxBelieverRatio && ratio >= eventType.maxBelieverRatio) return false;
     
     // ⭐ 反对者事件的难度阈值检查
@@ -922,7 +1054,7 @@ export class SpecialEventManager {
   async spawnEvent(eventType, country) {
     const eventId = `event_${this.eventIdCounter++}`;
     
-    console.log(`✨ 生成特殊事件: ${eventType.name} 在 ${country.id}`);
+    log.info(`✨ 生成特殊事件: ${eventType.name} 在 ${country.id}`);
     
     // SVG是通过object标签加载的，需要访问contentDocument
     const objectElement = document.getElementById('world-map-svg');
@@ -964,21 +1096,29 @@ export class SpecialEventManager {
         const skillEffect = this.gameState.getSkillModifier('good_person_effect');
         isCrownedGoodPerson = skillEffect.isCrownedVersion || false;
         
+        // ⭐ 检查进步主义天赋
+        const hasProgress = this.gameState.skillTree && this.gameState.skillTree.hasSkill('s_progress');
+        
         // ⭐ 检查是否还有转化空间（SE-COMPASSION-04）
         const apostates = country.apostates || 0;
         const maxBelievers = country.population - apostates;
         const hasConversionSpace = country.believers < maxBelievers;
         
-        // 如果没有转化空间（信徒+脱教者=人口），且不是荆棘王冠版本，跳过
-        if (!hasConversionSpace && !isCrownedGoodPerson) {
-          console.log(`⏭️ 跳过好人事件：${country.id} 已固化（信徒${country.believers}+脱教${apostates}=${country.population}），且非荆棘王冠版本`);
-          return;
-        }
-        
-        // 如果是荆棘王冠版本但没有脱教者，也跳过
-        if (isCrownedGoodPerson && apostates === 0 && !hasConversionSpace) {
-          console.log(`⏭️ 跳过荆棘王冠事件：${country.id} 无脱教者可转化，且无转化空间`);
-          return;
+        // 如果没有转化空间（信徒+脱教者=人口），检查是否有特殊天赋允许
+        if (!hasConversionSpace) {
+          // 荆棘王冠或进步主义可以从脱教者转化
+          if (!isCrownedGoodPerson && !hasProgress) {
+            log.debug(`⏭️ 跳过好人事件：${country.id} 已固化（信徒${country.believers}+脱教${apostates}=${country.population}），且无特殊天赋`);
+            return;
+          }
+          
+          // 有特殊天赋但没有脱教者，也跳过
+          if (apostates === 0) {
+            log.debug(`⏭️ 跳过好人事件：${country.id} 无脱教者可转化`);
+            return;
+          }
+          
+          log.info(`✅ ${hasProgress ? '进步主义' : '荆棘王冠'}：允许在${country.id}从脱教者转化`);
         }
       }
       
@@ -1002,7 +1142,7 @@ export class SpecialEventManager {
         
         // ⭐ 如果没有可用的哲学家（所有哲学家都在显示中），取消生成事件
         if (!philosopher) {
-          console.log(`🚫 无可用哲学家，取消生成反对者事件`);
+          log.warn(`🚫 无可用哲学家，取消生成反对者事件`);
           // 移除已创建的图标元素
           if (iconElement && iconElement.parentNode) {
             iconElement.parentNode.removeChild(iconElement);
@@ -1032,6 +1172,21 @@ export class SpecialEventManager {
       }
       
       this.activeEvents.set(eventId, eventData);
+      
+      // ⭐ 神父天赋：信徒>5%的国家，好人事件自动触发
+      if (eventType.id === 'good_person' && 
+          this.gameState && 
+          this.gameState.skillTree && 
+          this.gameState.skillTree.hasSkill('s_priest')) {
+        const believerRatio = country.believers / country.population;
+        if (believerRatio > 0.05) {
+          // 0.5秒后自动触发
+          setTimeout(() => {
+            console.log(`✝️ 神父天赋：自动触发好人事件 ${country.id} (信徒${(believerRatio*100).toFixed(1)}%)`);
+            this.handleEventClick(eventId);
+          }, 500);
+        }
+      }
       
       // 设置点击事件
       iconElement.addEventListener('click', (e) => {
@@ -1135,11 +1290,18 @@ export class SpecialEventManager {
       if (result && result.success === true) {
         // 点击成功
         if (result.destroyed === true) {
-          // 完全摧毁 → 移除哲学家实体
-          if (eventData.philosopherId) {
-            this.removePhilosopher(eventData.philosopherId);
+          // ⭐ 检查是暂时撤退还是完全摧毁
+          if (result.temporaryRetreat) {
+            // 暂时撤退：不移除哲学家实体，只移除图标，哲学家会再次出现
+            console.log(`🔄 哲学家暂时撤退，保留血量${eventData.health}，稍后会再次出现`);
+            shouldRemove = true;
+          } else {
+            // 完全摧毁（血量≤0）：移除哲学家实体并禁用
+            if (eventData.philosopherId) {
+              this.removePhilosopher(eventData.philosopherId);
+            }
+            shouldRemove = true;
           }
-          shouldRemove = true;
         } else {
           // 造成伤害但未摧毁 → 尝试转移
           if (result.shouldMigrate) {

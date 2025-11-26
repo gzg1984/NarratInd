@@ -15,6 +15,10 @@ const productionConfig = {
   
   // 事件基础概率
   events: {
+    baseSpread: {
+      baseChance: 1.0         // 100% 基础概率（每回合必定触发）
+      // 增长率在events.js中硬编码为+50%，上限0.5%人口
+    },
     selfSpread: {
       baseChance: 0.2,        // 20% 基础概率
       believerBonus: 0.01,    // 每10万信徒 +1%
@@ -74,6 +78,10 @@ const testingConfig = {
   
   // 事件基础概率
   events: {
+    baseSpread: {
+      baseChance: 1.0         // 100% 基础概率（每回合必定触发）
+      // 增长率在events.js中硬编码为+50%，上限0.5%人口
+    },
     selfSpread: {
       baseChance: 0.2,        // 20% 基础概率
       believerBonus: 0.01,    // 每10万信徒 +1%
@@ -89,7 +97,7 @@ const testingConfig = {
       baseGrowth: 50          // 固定增长 50 信徒
     },
     crossBorder: {
-      baseChance: 0.08,       // 8% 基础概率
+      baseChance: 0.15,       // 15% 基础概率
       initialBelievers: 10    // 新国家初始信徒数
     }
   },

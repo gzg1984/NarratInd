@@ -443,17 +443,41 @@ export class GameState {
         const originalTransferAmount = country.gdp * believerRatio * transferConfig.baseTransferRate;
         
         // ⭐ 应用天赋修正（同情天赋减半）
-        const modifiedTransferAmount = originalTransferAmount * wealthTransferModifier;
+        let modifiedTransferAmount = originalTransferAmount * wealthTransferModifier;
+        
+        // ⭐ 美学天赋：信徒>50%的国家财富转移速度×2
+        if (this.skillTree && this.skillTree.hasSkill('s_aesthetics') && believerRatio > 0.5) {
+          modifiedTransferAmount *= 2.0;
+          console.log(`🎨 美学天赋：${country.id}信徒${(believerRatio*100).toFixed(1)}% >50%，财富转移×2`);
+        }
+        
+        // ⭐ 进步主义天赋：财富转移扣除10%（给教授们）
+        let progressTax = 0;
+        if (this.skillTree && this.skillTree.hasSkill('s_progress')) {
+          progressTax = modifiedTransferAmount * 0.1;
+          modifiedTransferAmount *= 0.9; // 扣除10%
+          console.log(`🎓 进步主义：财富转移扣除10% (${progressTax.toFixed(3)}给教授)`);
+        }
+        
+        // ⭐ 神父天赋：国家GDP消耗翻倍（但转移到教团的仍按modifiedTransferAmount计算）
+        const hasPriestSkill = this.skillTree && this.skillTree.hasSkill('s_priest');
+        const gdpConsumption = hasPriestSkill ? originalTransferAmount * 2 : originalTransferAmount;
         
         // 检查财富下限
         const minGdp = country.originalGdp * transferConfig.minWealthRatio;
         const actualTransfer = Math.min(modifiedTransferAmount, Math.max(0, country.gdp - minGdp));
         
+        // ⭐ 神父天赋：确保GDP消耗不超过可用GDP
+        const actualGdpConsumption = hasPriestSkill 
+          ? Math.min(gdpConsumption, Math.max(0, country.gdp - minGdp))
+          : actualTransfer;
+        
         if (actualTransfer > 0) {
           // ⭐ 计算差额，返还给国家
           const returnedAmount = originalTransferAmount - actualTransfer;
           
-          country.gdp -= actualTransfer;
+          // ⭐ 扣除GDP（神父天赋会扣除更多）
+          country.gdp -= actualGdpConsumption;
           
           // ⭐ 如果有差额且天赋生效，返还给国家
           if (returnedAmount > 0 && wealthTransferModifier < 1.0) {

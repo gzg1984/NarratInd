@@ -255,7 +255,8 @@ export class NewsSystem {
       philosopher_escape: 2,     // 哲学家逃跑，级别2
       opponent_resist: 2,        // 哲学家抵抗玩家攻击（点击失败+完成传播），级别2
       opponent_click_success: 1, // 玩家成功抹黑哲学家，级别1
-      opponent_timeout: 1        // 哲学家成功传播（超时，无点击或点击成功），级别1
+      opponent_timeout: 1,       // 哲学家成功传播（超时，无点击或点击成功），级别1
+      opponent_priest_critique: 1 // ⭐ 神父天赋：反对者批评神父特权阶级，级别1
     };
     
     // 其他所有事件默认为级别0
@@ -277,6 +278,7 @@ export class NewsSystem {
       cross_border_start: 8,
       believers_50: 7,
       opponent_timeout: 6,
+      opponent_priest_critique: 6, // ⭐ 神父批评新闻
       good_person_click: 5,
       opponent_click_success: 5,
       believers_75: 5,
