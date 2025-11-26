@@ -1,6 +1,7 @@
 // src/app.js
 import { MapArea } from './components/MapArea.js';
 import { InfoBar } from './components/InfoBar.js';
+import { CountryInfoBar } from './components/CountryInfoBar.js';
 import { NewsBar } from './components/NewsBar.js';
 import { SkillTree } from './components/SkillTree.js';
 import { SpecialEventManager } from './components/SpecialEvents.js';
@@ -11,6 +12,7 @@ import { setLanguage, getCurrentLanguage } from './data/localization.js';
 // 全局组件实例
 let mapArea;
 let infoBar;
+let countryInfoBar;
 let newsBar;
 let skillTree;
 let specialEventManager;
@@ -137,6 +139,9 @@ function renderComponents() {
     // 渲染信息栏（悬浮在地图左下角）
     infoBar = new InfoBar('info-bar-container');
 
+    // ⭐ 渲染国家信息栏（底部固定）
+    countryInfoBar = new CountryInfoBar('country-info-bar-container', gameState);
+
     // 渲染新闻栏（悬浮在地图上方）
     newsBar = new NewsBar('event-bar-container', gameState);
 
@@ -160,6 +165,11 @@ function renderComponents() {
         specialEventManager.start();
         // 启动游戏循环
         startGameLoop();
+    });
+    
+    // ⭐ 设置国家点击回调（显示国家信息栏）
+    mapArea.setCountryClickCallback((countryId) => {
+        countryInfoBar.showCountry(countryId);
     });
     
     // 设置胜利回调
@@ -235,9 +245,9 @@ function stopGameLoop() {
 }
 
 // 处理一个游戏回合
-function processGameTurn() {
+async function processGameTurn() {
     // 处理一个回合的所有事件
-    const allEvents = gameState.processTurn();
+    const allEvents = await gameState.processTurn();
     
     // 更新所有已感染国家的视觉效果
     if (mapArea) {
@@ -246,6 +256,11 @@ function processGameTurn() {
     
     // 更新总信徒数显示（右上角）
     updateTotalBelievers();
+    
+    // ⭐ 刷新国家信息栏（如果正在显示）
+    if (countryInfoBar) {
+        countryInfoBar.refresh();
+    }
     
     // 更新信息栏信徒数显示（左下角）
     updateInfoBar();

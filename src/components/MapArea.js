@@ -24,6 +24,7 @@ export class MapArea {
         您的浏览器不支持 SVG
       </object>
       <div id="info-bar-container"></div>
+      <div id="country-info-bar-container"></div>
     `;
     
     // 等待 SVG 加载完成
@@ -85,8 +86,10 @@ export class MapArea {
           }
         }
       } else {
-        // 游戏已开始，显示国家信息
-        this.showCountryInfo(countryId);
+        // 游戏已开始，通知显示国家信息
+        if (this.onCountryClick) {
+          this.onCountryClick(countryId);
+        }
       }
     }
   }
@@ -96,13 +99,9 @@ export class MapArea {
     this.onGameStart = callback;
   }
 
-  // 显示国家信息
-  showCountryInfo(countryId) {
-    const country = this.gameState.getCountry(countryId);
-    if (country) {
-      const percentage = (country.believers / country.population * 100).toFixed(2);
-      alert(`国家: ${countryId}\n人口: ${(country.population / 1000000).toFixed(1)}M\n信徒: ${country.believers}\n占比: ${percentage}%\n财富等级: ${country.wealthLevel}`);
-    }
+  // 设置国家点击回调
+  setCountryClickCallback(callback) {
+    this.onCountryClick = callback;
   }
 
   // 根据国家ID更新视觉效果
@@ -145,6 +144,11 @@ export class MapArea {
 
   // 计算感染颜色（从 SVG 默认颜色黑色渐变到白色）
   calculateInfectionColor(whiteness) {
+    // 使用非线性映射：在高信徒比例区间放大颜色差异
+    // 使用平方根函数：sqrt(x) 让低比例区间变化快，高比例区间保持明显差异
+    // 例如：90% -> sqrt(0.9) = 0.949, 95% -> sqrt(0.95) = 0.975, 100% -> 1.0
+    const enhancedWhiteness = Math.sqrt(whiteness);
+    
     // SVG 默认填充色是黑色 RGB(0, 0, 0) -> 白色 RGB(255, 255, 255)
     const baseR = 0;
     const baseG = 0;
@@ -153,9 +157,9 @@ export class MapArea {
     const targetG = 255;
     const targetB = 255;
     
-    const r = Math.round(baseR + (targetR - baseR) * whiteness);
-    const g = Math.round(baseG + (targetG - baseG) * whiteness);
-    const b = Math.round(baseB + (targetB - baseB) * whiteness);
+    const r = Math.round(baseR + (targetR - baseR) * enhancedWhiteness);
+    const g = Math.round(baseG + (targetG - baseG) * enhancedWhiteness);
+    const b = Math.round(baseB + (targetB - baseB) * enhancedWhiteness);
     
     return `rgb(${r}, ${g}, ${b})`;
   }

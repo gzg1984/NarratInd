@@ -2,6 +2,7 @@
 import { initializeCountries } from '../data/countryData.js';
 import { processCountryEvents } from '../data/events.js';
 import { NewsSystem } from '../components/NewsSystem.js';
+import { SkillEffectManager } from '../skills/SkillEffectManager.js';
 
 export class GameState {
   constructor(getStarNameFn) {
@@ -15,6 +16,7 @@ export class GameState {
     this.onVictoryCallback = null; // 胜利回调
     this.onDefeatCallback = null; // 失败回调
     this.skillTree = null; // 技能树引用
+    this.skillEffectManager = null; // ⭐ 天赋效果管理器
     this.turnCount = 0; // 回合计数
     this.lastUninfectedCheck = 0; // 上次检查未感染国家的回合
     this.lastUninfectedCount = 0; // 上次未感染国家数量
@@ -32,6 +34,31 @@ export class GameState {
   // 设置技能树引用
   setSkillTree(skillTree) {
     this.skillTree = skillTree;
+    // ⭐ 创建天赋效果管理器
+    this.skillEffectManager = new SkillEffectManager(skillTree);
+  }
+
+  /**
+   * ⭐ 天赋效果管理系统（重构版）
+   * 集中管理所有天赋对游戏各个系统的影响
+   * 
+   * 所有效果算法详见: /SKILL_EFFECTS_SPEC.md
+   * 具体实现见: src/skills/SkillEffectManager.js
+   * 
+   * @param {string} effectType - 效果类型
+   * @param {object} context - 上下文信息（可选）
+   * @returns {number|object} 修正值或效果对象
+   */
+  getSkillModifier(effectType, context = {}) {
+    // 使用天赋效果管理器
+    if (this.skillEffectManager) {
+      return this.skillEffectManager.getModifier(effectType, context);
+    }
+    
+    // 降级处理：如果管理器未初始化，返回默认值
+    return effectType === 'good_person_effect' 
+      ? { modifier: 1.0, isCrownedVersion: false } 
+      : 1.0;
   }
 
   // 根据点击的SVG元素ID获取国家
@@ -73,7 +100,7 @@ export class GameState {
    * 处理一个回合的所有事件
    * @returns {Array} 所有触发的事件数组
    */
-  processTurn() {
+  async processTurn() {
     if (!this.isGameStarted || this.isVictory) return [];
 
     this.turnCount++;
@@ -97,10 +124,12 @@ export class GameState {
           const oldBelievers = country.believers;
           country.believers += event.believers;
           
-          // 确保不超过人口上限
-          if (country.believers > country.population) {
-            const actualIncrease = country.population - oldBelievers;
-            country.believers = country.population;
+          // 确保不超过人口上限（人口 - 脱教者）
+          const apostates = country.apostates || 0;
+          const maxBelievers = country.population - apostates;
+          if (country.believers > maxBelievers) {
+            const actualIncrease = maxBelievers - oldBelievers;
+            country.believers = maxBelievers;
             this.totalBelievers += actualIncrease;
           } else {
             this.totalBelievers += event.believers;
@@ -116,7 +145,7 @@ export class GameState {
         
         // 处理跨国传播
         if (event.crossBorder) {
-          this.handleCrossBorderSpread(event.sourceCountry);
+          await this.handleCrossBorderSpread(event.sourceCountry);
         }
         
         allTriggeredEvents.push(event);
@@ -133,6 +162,9 @@ export class GameState {
 
     // 每回合更新财富（基于信徒）
     this.updateWealth();
+    
+    // ⭐ 脱教者产生财富（让哲学家势力重新创造财富）
+    this.generateWealthFromApostates();
 
     // 检查失败条件（脱教者系统）
     this.checkDefeat();
@@ -203,10 +235,10 @@ export class GameState {
    * 处理跨国传播
    * @param {string} fromCountryId - 源国家ID
    */
-  handleCrossBorderSpread(fromCountryId) {
+  async handleCrossBorderSpread(fromCountryId) {
     // 动态导入配置
-    import('../data/gameConfig.js').then(module => {
-      const config = module.getEventConfig('crossBorder');
+    const module = await import('../data/gameConfig.js');
+    const config = module.getEventConfig('crossBorder');
       
       const sourceCountry = this.countries.get(fromCountryId);
       if (!sourceCountry) return;
@@ -289,11 +321,17 @@ export class GameState {
         successRate = Math.max(0.000001, successRate);
       }
       
-      // TODO: 技能修正接口（预留）
-      // 例如：s_refugee技能可以 successRate *= 1000（让穷国→富国变为0.02%可行）
-      // if (this.skillTree && this.skillTree.hasSkill('s_refugee')) {
-      //   successRate *= 1000;
-      // }
+      // ⭐ 天赋效果：同情天赋 - 穷国→富国传播加成
+      // 参考: SKILL_EFFECTS_SPEC.md - SE-COMPASSION-02
+      const skillModifier = this.getSkillModifier('poor_to_rich_spread', {
+        sourceCountry: sourceCountry,
+        targetCountry: targetCountry
+      });
+      successRate *= skillModifier;
+      
+      // TODO: 其他天赋效果
+      // 例如：难民天赋可以进一步增加穷国→富国传播
+      // 参考: SKILL_EFFECTS_SPEC.md - SE-REFUGEE-*
       
       // 成功率检查
       if (Math.random() > successRate) {
@@ -310,12 +348,11 @@ export class GameState {
       const typeText = type === 'land' ? '陆地' : type === 'sea' ? '海运' : '空运';
       console.log(`跨国传播成功(${typeText}): ${fromCountryId}(GDP${sourceCountry.gdp.toFixed(1)}) -> ${targetCountry.id}(GDP${targetCountry.gdp.toFixed(1)}), 初始信徒: ${config.initialBelievers}`);
       
-      // 记录跨国传播新闻
-      this.newsSystem.recordEvent('cross_border_start', {
-        sourceCountry: fromCountryId,
-        targetCountry: targetCountry.id,
-        countryId: targetCountry.id // 新闻发生地为目标国
-      });
+    // 记录跨国传播新闻
+    this.newsSystem.recordEvent('cross_border_start', {
+      sourceCountry: fromCountryId,
+      targetCountry: targetCountry.id,
+      countryId: targetCountry.id // 新闻发生地为目标国
     });
   }
 
@@ -365,6 +402,48 @@ export class GameState {
       
       return totalTransferred;
     });
+  }
+
+  /**
+   * ⭐ 脱教者产生财富
+   * 脱教者越多，哲学家势力越强，缓慢创造新财富（而非转移）
+   */
+  generateWealthFromApostates() {
+    const totalApostates = this.getTotalApostates();
+    if (totalApostates === 0) return;
+    
+    // 基础生成率：每百万脱教者每回合生成0.1财富
+    // 这个速率远低于信徒转移财富的速率，但可以让哲学家势力缓慢恢复
+    const baseGenerationRate = 0.0001; // 每个脱教者每回合生成0.0001财富
+    const wealthGenerated = totalApostates * baseGenerationRate;
+    
+    // 将生成的财富加到玩家的对立面（实际上是让全球经济增长）
+    // 这里我们把它体现为"哲学家势力的隐形资源"
+    // 通过降低玩家点击成功率来体现（已在effect中实现gdpRatio）
+    
+    // 但为了让玩家有反击机会，生成的财富应该分配给脱教者所在国家
+    const infectedCountries = this.getInfectedCountries();
+    infectedCountries.forEach(country => {
+      if (country.apostates > 0) {
+        const countryShare = country.apostates / totalApostates;
+        const countryWealth = wealthGenerated * countryShare;
+        
+        // 恢复该国GDP（但不超过原始值）
+        const newGdp = Math.min(country.gdp + countryWealth, country.originalGdp);
+        if (newGdp > country.gdp) {
+          const actualIncrease = newGdp - country.gdp;
+          country.gdp = newGdp;
+          
+          if (actualIncrease > 0.001) {
+            console.log(`📈 脱教者产生财富: ${country.id} +${actualIncrease.toFixed(3)} (脱教${country.apostates.toLocaleString()}人，GDP恢复至${country.gdp.toFixed(2)})`);
+          }
+        }
+      }
+    });
+    
+    if (wealthGenerated > 0.01) {
+      console.log(`📈 脱教者总财富生成: ${wealthGenerated.toFixed(3)} (总脱教${totalApostates.toLocaleString()}人)`);
+    }
   }
 
   // 获取国家信息

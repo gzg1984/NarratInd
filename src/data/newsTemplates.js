@@ -83,12 +83,12 @@ export const newsTemplates = {
   ],
   
   opponent_click_success: [
-    '{media}：近日，一名抗议{religion}的人被证实患有精神疾病。',
-    '{media}：{country}反对派领袖被曝丑闻，声誉扫地。',
-    '{media}：调查显示，{country}的抗议活动系境外势力操纵。',
-    '{media}：{country}警方逮捕多名反{religion}煽动者。',
-    '{media}：{country}反对派被曝接受非法资金，民众哗然。',
-    '{media}：{religion}批评者在{country}因造谣被起诉。'
+    '{media}：近日，抗议{religion}的{person}被证实患有精神疾病。',
+    '{media}：{person}被曝丑闻，声誉扫地，其在{country}的影响力大减。',
+    '{media}：调查显示，{person}在{country}的抗议活动系境外势力操纵。',
+    '{media}：{country}警方逮捕了反{religion}煽动者{person}。',
+    '{media}：{person}被曝接受非法资金，{country}民众哗然。',
+    '{media}：{religion}批评者{person}在{country}因造谣被起诉。'
   ],
   
   opponent_timeout: [
@@ -98,13 +98,22 @@ export const newsTemplates = {
     '{media}：{country}反对派获胜，{religion}信徒大规模流失。'
   ],
   
-  // ⭐ 新增：反对者抵抗成功事件（点击两次未消灭）
+  // ⭐ 新增：反对者抵抗成功事件（点击失败2次+完成传播）
   opponent_resist: [
     '{media}：即使面对{religion}的抹黑，{person}依然成功宣扬了他的观点，引发了大家对{religion}的思考。',
     '{media}：{person}在{country}的演讲引发轰动，尽管{religion}试图封锁消息。',
     '{media}：{religion}多次试图压制{person}，但其影响力反而在{country}不断扩大。',
     '{media}：{person}的理论在{country}广泛传播，{religion}的打压手段遭到质疑。',
     '{media}：{person}坚持批判{religion}，在{country}赢得了更多支持者。'
+  ],
+  
+  // ⭐ 新增：反对者被摧毁事件（玩家成功打击导致血量归零）
+  opponent_destroyed: [
+    '{media}：{person}目前已经名誉扫地，不得不退出公共视野。',
+    '{media}：{person}在{country}彻底失去影响力，被迫销声匿迹。',
+    '{media}：{person}的理论在{country}遭到彻底否定，本人已隐居。',
+    '{media}：{person}因丑闻缠身，宣布退出反{religion}运动。',
+    '{media}：{person}在{country}的声誉崩塌，再无发声空间。'
   ],
   
   // ⭐ 新增：反对者转移事件
@@ -114,6 +123,24 @@ export const newsTemplates = {
     '{media}：{person}在{source}遭遇压制后，转移至{target}寻求支持。',
     '{media}：{person}的思想从{source}传播到{target}，引发两地讨论。',
     '{media}：{person}战略转移至{target}，{religion}在该地区的地位受到威胁。'
+  ],
+  
+  // ⭐ 新增：哲学家侵略事件
+  philosopher_invade: [
+    '{media}：【重大新闻】著名哲学家{person}从{source}出发，主动进入{target}发起反{religion}运动！',
+    '{media}：震惊！{person}以{source}为基地，对{target}的{religion}信徒发起思想攻势！',
+    '{media}：{person}率领反对者联盟从{source}侵入{target}，{religion}面临严峻挑战！',
+    '{media}：警报！{person}的影响力已扩展至{target}，当地{religion}信徒面临信仰危机！',
+    '{media}：{person}从{source}发起反攻，{target}成为新战场，{religion}陷入被动！'
+  ],
+  
+  // ⭐ 新增：哲学家逃跑事件
+  philosopher_escape: [
+    '{media}：{person}在{source}遭遇强力打压，紧急撤退至{target}。',
+    '{media}：{person}从{source}战略转移，在{target}重整旗鼓准备反攻。',
+    '{media}：{person}逃离{source}，但其思想已在{target}扎根，{religion}未能彻底获胜。',
+    '{media}：{person}在{source}失利后退往{target}，专家称其仍具威胁。',
+    '{media}：{person}暂时离开{source}战场，转战{target}继续抵抗{religion}扩张。'
   ],
   
   // 财富变化

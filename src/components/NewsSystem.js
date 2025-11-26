@@ -182,7 +182,15 @@ export class NewsSystem {
    */
   getNewsLevel(eventType) {
     const levels = {
-      opponent_resist: 1  // 反对者抵抗成功，级别1
+      game_start: 10,            // 游戏开始，最高优先级
+      victory: 10,               // 胜利，最高优先级
+      defeat: 10,                // 失败，最高优先级
+      philosopher_invade: 3,     // 哲学家侵略，级别3
+      opponent_destroyed: 2,     // 哲学家被摧毁（血量归零），级别2
+      philosopher_escape: 2,     // 哲学家逃跑，级别2
+      opponent_resist: 2,        // 哲学家抵抗玩家攻击（点击失败+完成传播），级别2
+      opponent_click_success: 1, // 玩家成功抹黑哲学家，级别1
+      opponent_timeout: 1        // 哲学家成功传播（超时，无点击或点击成功），级别1
     };
     
     // 其他所有事件默认为级别0
@@ -277,21 +285,31 @@ export class NewsSystem {
 
   /**
    * 智能删除历史（保留重要事件）
-   * 删除20%的低优先级新闻
+   * 优先删除低级别、低优先级的新闻，保护game_start、victory、defeat等关键新闻
    */
   pruneHistory() {
     console.log('📰 新闻历史超过100条，开始智能采样...');
 
-    // 按优先级排序
-    const sorted = [...this.newsHistory].sort((a, b) => 
-      (a.priority || 3) - (b.priority || 3)
-    );
+    // 按级别优先，然后按优先级排序（从低到高）
+    // level高的排在后面（被保留），level低的排在前面（被删除）
+    const sorted = [...this.newsHistory].sort((a, b) => {
+      const levelA = a.level || 0;
+      const levelB = b.level || 0;
+      if (levelA !== levelB) {
+        return levelA - levelB; // 级别低的排前面
+      }
+      // 级别相同时按优先级排序
+      return (a.priority || 3) - (b.priority || 3);
+    });
 
-    // 保留80%，删除20%低优先级
+    // 保留80%，删除20%（从级别最低的开始删）
     const toKeep = Math.floor(this.newsHistory.length * 0.8);
     this.newsHistory = sorted.slice(-toKeep);
+    
+    // 按时间戳重新排序（恢复时间顺序）
+    this.newsHistory.sort((a, b) => a.timestamp - b.timestamp);
 
-    console.log(`📰 历史记录缩减至 ${this.newsHistory.length} 条`);
+    console.log(`📰 历史记录缩减至 ${this.newsHistory.length} 条（优先保留高级别新闻）`);
   }
 
   /**

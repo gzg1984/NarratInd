@@ -394,7 +394,9 @@ export function getBelieverRatio(country) {
  * @returns {number}
  */
 export function getNonBelievers(country) {
-  return country.population - country.believers;
+  // 脱教者(apostates)不能被正常传播手段转化
+  const apostates = country.apostates || 0;
+  return country.population - country.believers - apostates;
 }
 
 /**

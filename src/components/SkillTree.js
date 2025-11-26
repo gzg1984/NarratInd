@@ -1,8 +1,16 @@
 // SkillTree.js - 天赋树组件
+import { getSkillDescription } from '../skills/skillDescriptions.js';
+import { getFormattedQuote } from '../skills/skillQuotes.js';
+
 export class SkillTree {
   constructor(containerId, gameState) {
     this.container = document.getElementById(containerId);
     this.gameState = gameState; // 游戏状态引用
+    
+    // ⭐ 使用外部配置文件加载天赋描述
+    const compassionDesc = getSkillDescription('compassion');
+    const compassionQuote = getFormattedQuote('compassion');
+    
     this.skills = {
       wealth: [
         { id: 'w1', name: '基础积累', cost: 10, unlocked: false, x: 50, y: 50 },
@@ -11,8 +19,9 @@ export class SkillTree {
       ],
       spread: [
         // Tier 1
-        { id: 's_fair', name: '公平', cost: 0, unlocked: false, x: 20, y: 30, tier: 1,
-          desc: '贫穷国家更高概率触发"对现状不满"，信徒翻倍' },
+        { id: 'compassion', name: compassionDesc.name, icon: '🥣', cost: 0, unlocked: false, x: 20, y: 30, tier: 1,
+          desc: compassionDesc.description,
+          quote: compassionQuote },
         { id: 's_chosen', name: '神选', cost: 0, unlocked: false, x: 50, y: 30, tier: 1,
           desc: '富裕国家更高概率触发"主动传播"，信徒翻倍' },
         { id: 's_logic', name: '逻辑', cost: 0, unlocked: false, x: 80, y: 30, tier: 1,
@@ -22,7 +31,7 @@ export class SkillTree {
         { id: 's_slavery', name: '奴隶制', cost: 1000, unlocked: false, x: 50, y: 80, tier: 2,
           requires: ['s_chosen'], desc: '富国向穷国传播概率增加' },
         { id: 's_refugee', name: '难民', cost: 1000, unlocked: false, x: 20, y: 80, tier: 2,
-          requires: ['s_fair'], desc: '穷国向富国传播，拉低富国财富' },
+          requires: ['compassion'], desc: '穷国向富国传播，拉低富国财富' },
         { id: 's_dogma', name: '教条', cost: 1000, unlocked: false, x: 80, y: 80, tier: 2,
           requires: ['s_logic'], desc: '提高"不满"和"主动传播"，信徒翻倍' },
         
@@ -155,18 +164,29 @@ export class SkillTree {
       let color;
       let icon;
       
-      if (skill.unlocked) {
-        // 已解锁 - 绿色
-        color = '#4caf50';
-        icon = '✓';
-      } else if (this.canUnlock(skill, treeType)) {
-        // 可解锁 - 红色
-        color = '#c62828';
-        icon = '?';
+      // ⭐ 如果天赋有自定义图标，优先使用
+      if (skill.icon) {
+        icon = skill.icon;
+        // 有自定义图标时，根据状态调整颜色
+        if (skill.unlocked) {
+          color = '#4caf50'; // 绿色
+        } else if (this.canUnlock(skill, treeType)) {
+          color = '#c62828'; // 红色
+        } else {
+          color = '#555555'; // 灰色
+        }
       } else {
-        // 前置条件未满足 - 灰色
-        color = '#555555';
-        icon = '✕';
+        // 默认图标逻辑
+        if (skill.unlocked) {
+          color = '#4caf50';
+          icon = '✓';
+        } else if (this.canUnlock(skill, treeType)) {
+          color = '#c62828';
+          icon = '?';
+        } else {
+          color = '#555555';
+          icon = '✕';
+        }
       }
       
       return `
@@ -186,7 +206,7 @@ export class SkillTree {
           y="${skill.y + 4}" 
           text-anchor="middle" 
           fill="white" 
-          font-size="10"
+          font-size="${skill.icon ? '12' : '10'}"
           font-weight="bold"
           style="pointer-events: none;"
         >${icon}</text>
@@ -289,9 +309,13 @@ export class SkillTree {
       const statusText = skill.unlocked ? '✓ 已解锁' : (canUnlock ? '可解锁' : '✕ 需要前置天赋');
       const statusColor = skill.unlocked ? '#4caf50' : (canUnlock ? '#ffd700' : '#888');
       
+      // ⭐ 添加引用显示支持
+      const quoteHtml = skill.quote ? `<div style="color: #95a5a6; font-size: 10px; font-style: italic; margin: 4px 0; border-left: 2px solid #7f8c8d; padding-left: 6px;">${skill.quote}</div>` : '';
+      
       tooltip.innerHTML = `
         <strong style="color: #64b5f6;">${skill.name}</strong><br>
         ${skill.desc ? `<div style="color: #bdc3c7; font-size: 11px; margin: 4px 0;">${skill.desc}</div>` : ''}
+        ${quoteHtml}
         消耗: <span style="color: #ffd700;">${skill.cost}</span> 财富<br>
         状态: <span style="color: ${statusColor};">${statusText}</span>
       `;
