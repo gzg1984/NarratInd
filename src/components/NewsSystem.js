@@ -73,6 +73,10 @@ export class NewsSystem {
     // 填充模板
     const content = this.fillTemplate(template, data, media);
 
+    // ⭐ 如果使用了同情天赋模板，提升新闻级别到3
+    const usedCompassionTemplate = this.shouldUseCompassionTemplate(eventType);
+    const newsLevel = usedCompassionTemplate ? 3 : this.getNewsLevel(eventType);
+
     return {
       id: Date.now() + Math.random(),
       timestamp: Date.now(),
@@ -81,7 +85,7 @@ export class NewsSystem {
       content: content,
       countryId: data.countryId,
       priority: this.getEventPriority(eventType),
-      level: this.getNewsLevel(eventType) // 新闻级别 (0-10)
+      level: newsLevel // 新闻级别 (0-10)，同情天赋提升到3
     };
   }
 
@@ -92,6 +96,44 @@ export class NewsSystem {
    * @returns {string|null} 模板字符串
    */
   selectTemplate(eventType, data) {
+    // ⭐ 处理游戏失败特殊新闻（级别10）
+    if (eventType === 'game_defeat') {
+      const defeatTemplates = [
+        "💀 {philosopher} 在 {country} 消灭了最后的信徒！{star}的思想彻底湮没在历史长河中。",
+        "💀 终局！{philosopher} 在 {country} 发起的最后一击，将 {star} 的所有追随者转化为脱教者。",
+        "💀 {country} 的 {philosopher} 完成了致命一击，{star} 的信仰体系彻底崩溃。",
+        "💀 历史将记住这一天：{philosopher} 在 {country} 终结了 {star} 的思想传播。"
+      ];
+      return defeatTemplates[Math.floor(Math.random() * defeatTemplates.length)];
+    }
+    
+    // ⭐ 检查是否需要使用同情天赋的特殊模板
+    const useCompassionTemplate = this.shouldUseCompassionTemplate(eventType);
+    if (useCompassionTemplate) {
+      const template = this.getCompassionTemplate(eventType);
+      if (template) {
+        console.log(`🌿 使用同情天赋模板: ${eventType}`);
+        return template;
+      }
+    }
+    
+    // ⭐ 处理技能新闻（格式：skill_<skillName>_<newsType>）
+    if (eventType.startsWith('skill_')) {
+      const parts = eventType.split('_'); // ['skill', 'compassion', 'low_wealth_boost']
+      if (parts.length >= 3) {
+        const skillName = parts[1]; // 'compassion'
+        const newsType = parts.slice(2).join('_'); // 'low_wealth_boost'
+        
+        // 动态导入技能新闻模板
+        try {
+          return this.getSkillNewsTemplate(skillName, newsType);
+        } catch (error) {
+          console.warn(`⚠️ 无法加载技能新闻: ${eventType}`, error);
+          return null;
+        }
+      }
+    }
+    
     // 处理信徒里程碑
     if (eventType === 'believers_milestone' && data.countryId) {
       const country = this.gameState.getCountry(data.countryId);
@@ -152,7 +194,12 @@ export class NewsSystem {
     // ⭐ 替换哲学家/人物名称（用于反对者抵抗事件）
     if (data.philosopherName) {
       content = content.replace(/{person}/g, data.philosopherName);
+      content = content.replace(/{philosopher}/g, data.philosopherName);
+      content = content.replace(/{philosopherName}/g, data.philosopherName);
     }
+
+    // ⭐ 替换明星名称（用于技能新闻）
+    content = content.replace(/{star}/g, this.getReligionName());
 
     // 替换国家名称
     if (data.countryId) {
@@ -181,10 +228,28 @@ export class NewsSystem {
    * @returns {number} 新闻级别（0-10）
    */
   getNewsLevel(eventType) {
+    // ⭐ 技能新闻级别（从技能新闻模板中获取）
+    if (eventType.startsWith('skill_')) {
+      const parts = eventType.split('_');
+      if (parts.length >= 3) {
+        const skillName = parts[1];
+        const newsType = parts.slice(2).join('_');
+        
+        try {
+          const level = this.getSkillNewsLevel(skillName, newsType);
+          if (level !== null) return level;
+        } catch (error) {
+          console.warn(`⚠️ 无法获取技能新闻级别: ${eventType}`, error);
+        }
+      }
+    }
+    
     const levels = {
       game_start: 10,            // 游戏开始，最高优先级
       victory: 10,               // 胜利，最高优先级
       defeat: 10,                // 失败，最高优先级
+      game_defeat: 10,           // 游戏失败（反对者致命一击），最高优先级
+      global_believers_50: 4,    // 全球信徒50%，级别4
       philosopher_invade: 3,     // 哲学家侵略，级别3
       opponent_destroyed: 2,     // 哲学家被摧毁（血量归零），级别2
       philosopher_escape: 2,     // 哲学家逃跑，级别2
@@ -208,6 +273,7 @@ export class NewsSystem {
       victory: 10,
       defeat: 10,
       believers_100: 9,
+      global_believers_50: 8,    // 全球50%里程碑
       cross_border_start: 8,
       believers_50: 7,
       opponent_timeout: 6,
@@ -227,8 +293,163 @@ export class NewsSystem {
   }
 
   /**
+   * ⭐ 检查是否应该使用同情天赋模板
+   * @param {string} eventType - 事件类型
+   * @returns {boolean}
+   */
+  shouldUseCompassionTemplate(eventType) {
+    // 对传播相关事件生效
+    const spreadEvents = [
+      'self_spread', 
+      'attract_dissatisfied', 
+      'real_help', 
+      'cross_border_start',
+      'good_person_click',  // ⭐ 好人事件点击
+      'good_person_timeout' // ⭐ 好人事件超时
+    ];
+    if (!spreadEvents.includes(eventType)) return false;
+    
+    // 检查同情天赋是否解锁
+    if (!this.gameState.skillTree || !this.gameState.skillTree.hasSkill('compassion')) {
+      return false;
+    }
+    
+    // 检查财富是否 < 10
+    const wealth = this.gameState.wealth || 0;
+    return wealth < 10;
+  }
+
+  /**
+   * ⭐ 获取同情天赋的特殊模板
+   * @param {string} eventType - 事件类型
+   * @returns {string|null}
+   */
+  getCompassionTemplate(eventType) {
+    // 同情天赋的特殊模板（强调贫穷和共苦）
+    const compassionTemplates = {
+      self_spread: [
+        '{media}：{country}的贫困者互相帮助，{religion}在苦难中传播。',
+        '{media}：{religion}在{country}的底层民众中蔓延，穷人们看到了希望。',
+        '{media}：{country}的工人和农民在{religion}中找到了慰藉。',
+        '{media}：贫穷让{country}的人们更加团结，{religion}在他们之间快速传播。'
+      ],
+      attract_dissatisfied: [
+        '{media}：{country}的不满者加入{religion}，他们说：“我们是同一种人。”',
+        '{media}：{religion}吸引了{country}大量贫困群体，他们寻求改变。',
+        '{media}：{country}的弱势群体纷纷皮依{religion}，称找到了归属感。',
+        '{media}：{religion}成为{country}贫困者的精神寄托。'
+      ],
+      real_help: [
+        '{media}：{religion}信徒在{country}帮助贫困家庭，赢得了信任。',
+        '{media}：{country}有人称{religion}信徒“理解我们的苦难”。',
+        '{media}：{religion}在{country}开展慈善活动，帮助贫穷社区。',
+        '{media}：{country}贫民称{religion}信徒是“真正的好人”。'
+      ],
+      cross_border_start: [
+        '{media}：{religion}从{source}传播到{target}，两国穷人产生共鸣。',
+        '{media}：{target}的底层民众接纳了来自{source}的{religion}。',
+        '{media}：{religion}跨越边界，连接{source}和{target}的贫困者。',
+        '{media}：{target}的弱势群体欢迎来自{source}的{religion}。'
+      ],
+      // ⭐ 好人事件的同情版本
+      good_person_click: [
+        '{media}：{country}一位来自贫民窟的活动家公开支持{religion}。',
+        '{media}：{country}底层社会工作者为{religion}发声，称其帮助了无数穷人。',
+        '{media}：{religion}在{country}获得贫困社区领袖的背书。',
+        '{media}：{country}贫民区意见领袖称{religion}给穷人带来希望。',
+        '{media}：{country}慈善家称{religion}是"穷人的福音"。'
+      ],
+      good_person_timeout: [
+        '{media}：{country}贫困地区支持{religion}的集会因故取消。',
+        '{media}：{country}底层民众的{religion}支持活动遭遇困难。'
+      ]
+    };
+    
+    const templates = compassionTemplates[eventType];
+    if (templates && templates.length > 0) {
+      return templates[Math.floor(Math.random() * templates.length)];
+    }
+    
+    return null;
+  }
+
+  /**
+   * 获取技能新闻模板（延迟加载）
+   * @param {string} skillName - 技能名称
+   * @param {string} newsType - 新闻类型
+   * @returns {string|null} 新闻模板
+   */
+  getSkillNewsTemplate(skillName, newsType) {
+    // 使用硬编码的模板，避免动态导入问题
+    const skillNewsTemplates = {
+      compassion: {
+        low_wealth_boost: {
+          level: 3,
+          templates: [
+            "{country}的贫穷国民认为{star}帮助了他们度过困难时期。",
+            "在困难时期，{country}的人们感受到了{star}的温暖。",
+            "{country}的穷人说：'{star}理解我们的苦难。'",
+            "贫困让{country}的人民更接近{star}的教诲。"
+          ]
+        },
+        high_wealth_hypocrisy: {
+          level: 3,
+          templates: [
+            "{philosopher}认为{star}非常虚伪，利用着人们的同情心大肆敛财。",
+            "{philosopher}指责{star}：'他们一边宣扬同情，一边积累财富！'",
+            "{philosopher}讽刺道：'{star}的同情心似乎只对富人有效。'",
+            "{philosopher}说：'{star}用贫困者的故事赚钱，这才是真正的剥削。'"
+          ]
+        },
+        low_wealth_kill: {
+          level: 3,
+          templates: [
+            "{philosopher}的言论被普遍认为傲慢而且缺乏人道主义关怀，对贫困的人毫无同情。",
+            "公众谴责{philosopher}的言论冷酷无情，完全忽视了{country}贫困人口的苦难。",
+            "{philosopher}因为对底层人民的蔑视态度而遭到强烈抵制，在{country}失去了所有公信力。",
+            "{country}的民众认为{philosopher}站在富人一边，对穷人的痛苦视而不见，其言论不值一提。"
+          ]
+        }
+      }
+    };
+    
+    if (skillNewsTemplates[skillName] && skillNewsTemplates[skillName][newsType]) {
+      const templates = skillNewsTemplates[skillName][newsType].templates;
+      if (templates && templates.length > 0) {
+        return templates[Math.floor(Math.random() * templates.length)];
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * 获取技能新闻级别
+   * @param {string} skillName - 技能名称
+   * @param {string} newsType - 新闻类型
+   * @returns {number|null} 新闻级别
+   */
+  getSkillNewsLevel(skillName, newsType) {
+    // 使用硬编码的级别
+    const skillNewsTemplates = {
+      compassion: {
+        low_wealth_boost: { level: 3 },
+        high_wealth_hypocrisy: { level: 3 },
+        low_wealth_kill: { level: 3 }
+      }
+    };
+    
+    if (skillNewsTemplates[skillName] && skillNewsTemplates[skillName][newsType]) {
+      return skillNewsTemplates[skillName][newsType].level || 0;
+    }
+    
+    return null;
+  }
+
+  /**
    * 获取待播报的新闻（5秒轮询调用）
    * ⭐ 总是从当前备选的最高级别的新闻里选择一条来显示
+   * ⭐ 但级别10的新闻（重大事件）全部播报，不受此限制
    * @returns {Object|null} 新闻对象
    */
   getNextNews() {
@@ -236,6 +457,19 @@ export class NewsSystem {
 
     // 找出最高级别
     const maxLevel = Math.max(...this.newsQueue.map(n => n.level || 0));
+    
+    // ⭐ 级别10的新闻（游戏开始、胜利、失败等重大事件）应该全部播报
+    // 按照入队顺序依次取出
+    if (maxLevel === 10) {
+      const topNews = this.newsQueue.find(n => n.level === 10);
+      if (topNews) {
+        const index = this.newsQueue.indexOf(topNews);
+        this.newsQueue.splice(index, 1);
+        console.log(`📢 播报级别10重大新闻（队列剩余${this.newsQueue.filter(n => n.level === 10).length}条级别10新闻）`);
+        this.addToHistory(topNews);
+        return topNews;
+      }
+    }
     
     // 筛选出最高级别的所有新闻
     const topLevelNews = this.newsQueue.filter(n => (n.level || 0) === maxLevel);

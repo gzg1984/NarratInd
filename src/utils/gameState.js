@@ -13,6 +13,7 @@ export class GameState {
     this.wealth = 0; // 财富资源
     this.isGameStarted = false; // 游戏是否开始
     this.isVictory = false; // 是否已胜利
+    this.isDefeatTriggered = false; // ⭐ 失败是否已触发（防止重复弹窗）
     this.onVictoryCallback = null; // 胜利回调
     this.onDefeatCallback = null; // 失败回调
     this.skillTree = null; // 技能树引用
@@ -20,6 +21,8 @@ export class GameState {
     this.turnCount = 0; // 回合计数
     this.lastUninfectedCheck = 0; // 上次检查未感染国家的回合
     this.lastUninfectedCount = 0; // 上次未感染国家数量
+    this.lastDefeatingPhilosopher = null; // ⭐ 最后致命的反对者信息 {philosopherName, countryId}
+    this.globalMilestoneReached = new Set(); // ⭐ 已达成的全球里程碑
     this.newsSystem = new NewsSystem(this, getStarNameFn); // 新闻系统
     this.initCountryData();
   }
@@ -34,8 +37,8 @@ export class GameState {
   // 设置技能树引用
   setSkillTree(skillTree) {
     this.skillTree = skillTree;
-    // ⭐ 创建天赋效果管理器
-    this.skillEffectManager = new SkillEffectManager(skillTree);
+    // ⭐ 创建天赋效果管理器，传入 this（gameState）
+    this.skillEffectManager = new SkillEffectManager(skillTree, this);
   }
 
   /**
@@ -166,6 +169,12 @@ export class GameState {
     // ⭐ 脱教者产生财富（让哲学家势力重新创造财富）
     this.generateWealthFromApostates();
 
+    // ⭐ 检查财富状态并触发技能新闻（同情天赋）
+    this.checkWealthNews();
+
+    // ⭐ 检查全球里程碑
+    this.checkGlobalMilestones();
+
     // 检查失败条件（脱教者系统）
     this.checkDefeat();
 
@@ -177,6 +186,56 @@ export class GameState {
 
     return allTriggeredEvents;
   }
+
+  /**
+   * ⭐ 检查财富状态并触发技能新闻
+   */
+  checkWealthNews() {
+    if (!this.skillEffectManager) return;
+    
+    const newsType = this.skillEffectManager.checkWealthNewsTrigger();
+    
+    if (newsType) {
+      const infectedCountries = this.getInfectedCountries();
+      
+      if (infectedCountries.length > 0) {
+        const randomCountry = infectedCountries[Math.floor(Math.random() * infectedCountries.length)];
+        
+        this.newsSystem.recordEvent(`skill_compassion_${newsType}`, {
+          countryId: randomCountry.id
+        });
+      }
+    }
+  }
+
+  /**
+   * ⭐ 检查全球里程碑
+   */
+  checkGlobalMilestones() {
+    const globalRatio = this.totalBelievers / this.totalPopulation;
+    
+    // 全球50%里程碑
+    if (globalRatio >= 0.5 && !this.globalMilestoneReached.has('50')) {
+      this.globalMilestoneReached.add('50');
+      
+      // 随机选择一个感染国家作为新闻发布地
+      const infectedCountries = this.getInfectedCountries();
+      if (infectedCountries.length > 0) {
+        const randomCountry = infectedCountries[Math.floor(Math.random() * infectedCountries.length)];
+        
+        this.newsSystem.recordEvent('global_believers_50', {
+          countryId: randomCountry.id
+        });
+        
+        console.log('🌍 全球信徒达到50%！反对者开始在全球范围内出现。');
+      }
+    }
+    
+    // 未来可以添加其他全球里程碑
+    // if (globalRatio >= 0.75 && !this.globalMilestoneReached.has('75')) { ... }
+  }
+
+
 
   /**
    * 检查孤立的未感染国家（调试功能）
@@ -367,6 +426,10 @@ export class GameState {
     import('../data/gameConfig.js').then(module => {
       const transferConfig = module.getWealthTransferConfig();
       let totalTransferred = 0;
+      let totalReturnedToCountries = 0; // ⭐ 返还给国家的财富
+      
+      // ⭐ 获取天赋财富转移修正
+      const wealthTransferModifier = this.getSkillModifier('wealth_transfer');
       
       // 遍历所有已感染国家
       const infectedCountries = this.getInfectedCountries();
@@ -376,20 +439,34 @@ export class GameState {
         
         const believerRatio = country.believers / country.population;
         
-        // 计算本回合转移量：国家GDP × 信徒占比 × 转移率
-        const transferAmount = country.gdp * believerRatio * transferConfig.baseTransferRate;
+        // 计算本回合原始转移量：国家GDP × 信徒占比 × 转移率
+        const originalTransferAmount = country.gdp * believerRatio * transferConfig.baseTransferRate;
+        
+        // ⭐ 应用天赋修正（同情天赋减半）
+        const modifiedTransferAmount = originalTransferAmount * wealthTransferModifier;
         
         // 检查财富下限
         const minGdp = country.originalGdp * transferConfig.minWealthRatio;
-        const actualTransfer = Math.min(transferAmount, Math.max(0, country.gdp - minGdp));
+        const actualTransfer = Math.min(modifiedTransferAmount, Math.max(0, country.gdp - minGdp));
         
         if (actualTransfer > 0) {
+          // ⭐ 计算差额，返还给国家
+          const returnedAmount = originalTransferAmount - actualTransfer;
+          
           country.gdp -= actualTransfer;
+          
+          // ⭐ 如果有差额且天赋生效，返还给国家
+          if (returnedAmount > 0 && wealthTransferModifier < 1.0) {
+            country.gdp += returnedAmount;
+            totalReturnedToCountries += returnedAmount;
+          }
+          
           totalTransferred += actualTransfer;
           
           // 调试日志
           if (actualTransfer > 0.001) {
-            console.log(`💰 财富转移: ${country.id} -${actualTransfer.toFixed(3)} (剩余${country.gdp.toFixed(2)}/${country.originalGdp.toFixed(2)})`);
+            const returnInfo = returnedAmount > 0 ? ` [返还${returnedAmount.toFixed(3)}]` : '';
+            console.log(`💰 财富转移: ${country.id} -${actualTransfer.toFixed(3)}${returnInfo} (剩余${country.gdp.toFixed(2)}/${country.originalGdp.toFixed(2)})`);
           }
         }
       });
@@ -397,7 +474,8 @@ export class GameState {
       this.wealth += totalTransferred;
       
       if (totalTransferred > 0.01) {
-        console.log(`💰 本回合总转移: +${totalTransferred.toFixed(3)}, 累计财富: ${this.wealth.toFixed(2)}`);
+        const returnInfo = totalReturnedToCountries > 0 ? `, 返还${totalReturnedToCountries.toFixed(3)}` : '';
+        console.log(`💰 本回合总转移: +${totalTransferred.toFixed(3)}${returnInfo}, 累计财富: ${this.wealth.toFixed(2)}`);
       }
       
       return totalTransferred;
@@ -493,16 +571,36 @@ export class GameState {
     
     // 失败条件：信徒数为0且脱教者数量显著（至少有过一定规模的传播）
     if (totalInfectedBelievers === 0 && totalInfectedApostates > 1000) {
-      this.isVictory = false; // 确保不是胜利状态
-      this.isGameStarted = false; // 结束游戏
-      console.log('💀 失败！你所宣传的思想已经被全世界抛弃！');
-      
-      // 调用失败回调
-      if (this.onDefeatCallback) {
-        this.onDefeatCallback();
+      // ⭐ 防止重复触发失败逻辑
+      if (this.isDefeatTriggered) {
+        return true; // 已经触发过，直接返回
       }
       
-      alert('你所宣传的思想已经被全世界抛弃，最终湮没在了时间之中。\n\n游戏失败！');
+      this.isDefeatTriggered = true; // 标记已触发
+      this.isVictory = false; // 确保不是胜利状态
+      console.log('💀 失败！你所宣传的思想已经被全世界抛弃！');
+      
+      // ⭐ 记录失败新闻（级别10，最高级）
+      if (this.lastDefeatingPhilosopher) {
+        this.newsSystem.recordEvent('game_defeat', {
+          philosopherName: this.lastDefeatingPhilosopher.philosopherName,
+          countryId: this.lastDefeatingPhilosopher.countryId
+        });
+        console.log(`📰 触发游戏失败新闻 [级别10]: ${this.lastDefeatingPhilosopher.philosopherName} @ ${this.lastDefeatingPhilosopher.countryId}`);
+      }
+      
+      // ⭐ 延迟游戏停止，让级别10的新闻都播报完（两条新闻需要10秒）
+      setTimeout(() => {
+        this.isGameStarted = false; // 结束游戏
+        
+        // 调用失败回调
+        if (this.onDefeatCallback) {
+          this.onDefeatCallback();
+        }
+        
+        alert('你所宣传的思想已经被全世界抛弃，最终湮没在了时间之中。\n\n游戏失败！');
+      }, 12000); // 12秒后才弹窗和停止游戏（确保两条新闻都播报完）
+      
       return true;
     }
     

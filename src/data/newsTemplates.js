@@ -32,10 +32,10 @@ export const newsTemplates = {
   ],
   
   believers_50: [
-    '{media}：{religion}已成为{country}的主流信仰。',
-    '{media}：{country}过半人口信仰{religion}，政局可能生变。',
-    '{media}：历史性时刻：{religion}在{country}占据多数。',
-    '{media}：{country}宗教革命完成，{religion}成为主流。'
+    '{media}：{religion}已成为{country}的主流信仰，但批评的声音也开始增多。',
+    '{media}：{country}过半人口信仰{religion}，政局可能生变，反对者开始发声。',
+    '{media}：历史性时刻：{religion}在{country}占据多数，不过质疑声音也随之而来。',
+    '{media}：{country}宗教革命完成，{religion}成为主流，批判性讨论同时升温。'
   ],
   
   believers_75: [
@@ -160,6 +160,14 @@ export const newsTemplates = {
     '{media}：{country}经济崩溃，{religion}信徒大量流失。',
     '{media}：贫困导致{country}民众对{religion}失去信心。',
     '{media}：{country}民生凋敝，{religion}被指责失职。'
+  ],
+  
+  // 全球里程碑
+  global_believers_50: [
+    '{media}：{religion}的迅速传播引起了社会讨论的热潮，开始有一些享有盛誉的学者开始研究{religion}了。',
+    '{media}：全球过半人口信仰{religion}，学术界开始严肃对待这一现象。',
+    '{media}：{religion}席卷全球，顶尖学者纷纷投入研究。',
+    '{media}：{religion}成为全球主流思潮，知识分子展开深度讨论。'
   ],
   
   // 游戏结束

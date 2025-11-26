@@ -15,12 +15,12 @@ export const skillDescriptions = {
    */
   compassion: {
     name: '同情',
-    description: '反对者概率↓，穷→富传播↑，好人事件可转化脱教者',
+    description: '同情心是一种天生缺陷，利用同情心，可以提升你的传播能力。但当你的财富增加时，会导致反效果。',
     detailedDescription: [
-      '降低反对者出现概率',
-      '增强从贫穷国家向富裕国家的传播',
-      '好人事件有概率触发荆棘王冠版本',
-      '荆棘王冠版本效果翻倍并能转化脱教者'
+      '【低财富加成】财富值<10时，所有传播事件概率翻倍',
+      '【高财富惩罚】财富值>10时，传播概率减半，反对者概率增加50%',
+      '【财富转移减半】从国家转移的财富减半，差额返还国家GDP',
+      '【特殊新闻】低财富/高财富状态会触发专属新闻'
     ].join('\n')
   },
 
@@ -34,12 +34,17 @@ export const skillDescriptions = {
   },
 
   /**
-   * 神选天赋（示例，待实现）
+   * 原罪天赋
+   * 效果算法详见: SKILL_EFFECTS_SPEC.md - SE-ORIGINAL_SIN-*
    */
-  chosen: {
-    name: '神选',
-    description: '待定义效果',
-    detailedDescription: '待定义详细描述'
+  original_sin: {
+    name: '原罪',
+    description: '人做错事情是正常的，但你可以让他们相信这不正常。提升你的传播能力。',
+    detailedDescription: [
+      '【传播速度翻倍】所有传播事件的概率翻倍',
+      '【可叠加】可与同情天赋的低财富加成叠加（4倍）',
+      '【普遍效果】影响所有传播类型事件'
+    ].join('\n')
   },
 
   /**

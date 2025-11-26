@@ -61,6 +61,12 @@ export const eventTypes = {
       
       // === 5. 天赋修正 ===
       
+      // ⭐ 同情天赋：基于财富的传播概率修正（SE-COMPASSION-01 & SE-COMPASSION-02）
+      if (gameState && gameState.getSkillModifier) {
+        const spreadModifier = gameState.getSkillModifier('spread_probability');
+        chance *= spreadModifier;
+      }
+      
       // s_chosen: 神选 - 富国更高概率，信徒翻倍
       if (skillTree.hasSkill('s_chosen') && isWealthyCountry(country)) {
         chance *= 2.0; // 富国概率翻倍（抵消财富惩罚）
@@ -138,6 +144,12 @@ export const eventTypes = {
       
       // === 5. 天赋修正 ===
       
+      // ⭐ 同情天赋：基于财富的传播概率修正（SE-COMPASSION-01 & SE-COMPASSION-02）
+      if (gameState && gameState.getSkillModifier) {
+        const spreadModifier = gameState.getSkillModifier('spread_probability');
+        chance *= spreadModifier;
+      }
+      
       // s_fair: 公平 - 贫穷国家更高概率
       if (skillTree.hasSkill('s_fair') && isPoorCountry(country)) {
         chance *= 2.0; // 概率翻倍
@@ -214,6 +226,12 @@ export const eventTypes = {
       
       // === 6. 天赋修正 ===
       
+      // ⭐ 同情天赋：基于财富的传播概率修正（SE-COMPASSION-01 & SE-COMPASSION-02）
+      if (gameState && gameState.getSkillModifier) {
+        const spreadModifier = gameState.getSkillModifier('spread_probability');
+        chance *= spreadModifier;
+      }
+      
       // s_logic: 逻辑 - 提高概率、效果和财富
       if (skillTree.hasSkill('s_logic')) {
         chance *= 2.0;
@@ -274,6 +292,12 @@ export const eventTypes = {
       chance *= (0.7 + wealthFactor * 0.6); // 贫穷: ×1.3, 富裕: ×0.7
       
       // === 4. 天赋修正 ===
+      
+      // ⭐ 同情天赋：基于财富的传播概率修正（SE-COMPASSION-01 & SE-COMPASSION-02）
+      if (gameState && gameState.getSkillModifier) {
+        const spreadModifier = gameState.getSkillModifier('spread_probability');
+        chance *= spreadModifier;
+      }
       
       // s_slavery: 奴隶制 - 富国向穷国传播概率增加
       if (skillTree.hasSkill('s_slavery') && isWealthyCountry(country)) {

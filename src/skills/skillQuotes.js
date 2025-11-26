@@ -25,11 +25,11 @@ export const skillQuotes = {
   },
 
   /**
-   * 神选天赋（示例，待实现）
+   * 原罪天赋
    */
-  chosen: {
-    quote: '待添加引用语句',
-    source: '待定义来源'
+  original_sin: {
+    quote: '我们都如羊走迷，各人偏行己路；',/*耶和华使我们众人的罪孽都归在他身上。*/
+    source: '以赛亚书 53:6'
   },
 
   /**

@@ -6,10 +6,13 @@ export class SkillTree {
   constructor(containerId, gameState) {
     this.container = document.getElementById(containerId);
     this.gameState = gameState; // 游戏状态引用
+    this.unlockedSkillsCount = 0; // ⭐ 已解锁天赋数量（用于动态价格计算）
     
     // ⭐ 使用外部配置文件加载天赋描述
     const compassionDesc = getSkillDescription('compassion');
     const compassionQuote = getFormattedQuote('compassion');
+    const originalSinDesc = getSkillDescription('original_sin');
+    const originalSinQuote = getFormattedQuote('original_sin');
     
     this.skills = {
       wealth: [
@@ -19,36 +22,37 @@ export class SkillTree {
       ],
       spread: [
         // Tier 1
-        { id: 'compassion', name: compassionDesc.name, icon: '🥣', cost: 0, unlocked: false, x: 20, y: 30, tier: 1,
+        { id: 'compassion', name: compassionDesc.name, icon: '🥣', cost: 0, baseCost: 0, unlocked: false, x: 20, y: 30, tier: 1,
           desc: compassionDesc.description,
           quote: compassionQuote },
-        { id: 's_chosen', name: '神选', cost: 0, unlocked: false, x: 50, y: 30, tier: 1,
-          desc: '富裕国家更高概率触发"主动传播"，信徒翻倍' },
-        { id: 's_logic', name: '逻辑', cost: 0, unlocked: false, x: 80, y: 30, tier: 1,
+        { id: 'original_sin', name: originalSinDesc.name, icon: '⛓️', cost: 0, baseCost: 0, unlocked: false, x: 50, y: 30, tier: 1,
+          desc: originalSinDesc.description,
+          quote: originalSinQuote },
+        { id: 's_logic', name: '逻辑', cost: 0, baseCost: 0, unlocked: false, x: 80, y: 30, tier: 1,
           desc: '提高"帮助到人"概率，信徒翻倍，提高国家财富' },
         
         // Tier 2
-        { id: 's_slavery', name: '奴隶制', cost: 1000, unlocked: false, x: 50, y: 80, tier: 2,
-          requires: ['s_chosen'], desc: '富国向穷国传播概率增加' },
-        { id: 's_refugee', name: '难民', cost: 1000, unlocked: false, x: 20, y: 80, tier: 2,
+        { id: 's_slavery', name: '奴隶制', cost: 1000, baseCost: 1000, unlocked: false, x: 50, y: 80, tier: 2,
+          requires: ['original_sin'], desc: '富国向穷国传播概率增加' },
+        { id: 's_refugee', name: '难民', cost: 1000, baseCost: 1000, unlocked: false, x: 20, y: 80, tier: 2,
           requires: ['compassion'], desc: '穷国向富国传播，拉低富国财富' },
-        { id: 's_dogma', name: '教条', cost: 1000, unlocked: false, x: 80, y: 80, tier: 2,
+        { id: 's_dogma', name: '教条', cost: 1000, baseCost: 1000, unlocked: false, x: 80, y: 80, tier: 2,
           requires: ['s_logic'], desc: '提高"不满"和"主动传播"，信徒翻倍' },
         
         // Tier 3
-        { id: 's_progress', name: '进步主义', cost: 10000, unlocked: false, x: 65, y: 130, tier: 3,
+        { id: 's_progress', name: '进步主义', cost: 10000, baseCost: 10000, unlocked: false, x: 65, y: 130, tier: 3,
           requires: ['s_dogma', 's_slavery'], desc: '富国极高概率"主动传播"，信徒翻倍' },
-        { id: 's_conspiracy', name: '阴谋论', cost: 10000, unlocked: false, x: 35, y: 130, tier: 3,
+        { id: 's_conspiracy', name: '阴谋论', cost: 10000, baseCost: 10000, unlocked: false, x: 35, y: 130, tier: 3,
           requires: ['s_slavery', 's_refugee'], desc: '所有国家提高"不满"概率，信徒翻倍' },
-        { id: 's_family', name: '家族传播', cost: 10000, unlocked: false, x: 80, y: 130, tier: 3,
+        { id: 's_family', name: '家族传播', cost: 10000, baseCost: 10000, unlocked: false, x: 80, y: 130, tier: 3,
           requires: ['s_dogma'], desc: '降低"主动传播"和"不满"，大幅提高"帮助到人"，增加财富' },
         
         // Tier 4
-        { id: 's_corrupt', name: '腐化', cost: 100000, unlocked: false, x: 25, y: 180, tier: 4,
+        { id: 's_corrupt', name: '腐化', cost: 100000, baseCost: 100000, unlocked: false, x: 25, y: 180, tier: 4,
           requires: ['s_conspiracy'], desc: '信徒>50%地区削减财富' },
-        { id: 's_divide', name: '割裂', cost: 100000, unlocked: false, x: 45, y: 180, tier: 4,
+        { id: 's_divide', name: '割裂', cost: 100000, baseCost: 100000, unlocked: false, x: 45, y: 180, tier: 4,
           requires: ['s_conspiracy'], desc: '信徒>50%地区削减财富' },
-        { id: 's_replace', name: '替换', cost: 100000, unlocked: false, x: 75, y: 180, tier: 4,
+        { id: 's_replace', name: '替换', cost: 100000, baseCost: 100000, unlocked: false, x: 75, y: 180, tier: 4,
           requires: ['s_conspiracy', 's_family', 's_dogma', 's_refugee'], 
           desc: '信徒<50%地区削减财富，更高概率"主动传播"，信徒翻倍' }
       ],
@@ -238,6 +242,28 @@ export class SkillTree {
   }
 
   // 解锁技能
+  /**
+   * ⭐ 计算天赋的实时价格
+   * 公式：实时价格 = 基础价格 + (已解锁天赋数 × 2 × 天赋层级)
+   */
+  calculateRealTimeCost(skill) {
+    if (!skill.baseCost && skill.baseCost !== 0) {
+      skill.baseCost = skill.cost; // 兼容旧数据
+    }
+    return skill.baseCost + (this.unlockedSkillsCount * 2 * (skill.tier || 1));
+  }
+
+  /**
+   * ⭐ 更新所有天赋的实时价格
+   */
+  updateAllSkillCosts() {
+    for (const tree of Object.values(this.skills)) {
+      for (const skill of tree) {
+        skill.cost = this.calculateRealTimeCost(skill);
+      }
+    }
+  }
+
   unlockSkill(skillId) {
     let skill = null;
     let treeType = null;
@@ -266,18 +292,29 @@ export class SkillTree {
       return;
     }
     
-    // 检查财富是否足够
+    // ⭐ 使用实时价格
+    const realTimeCost = this.calculateRealTimeCost(skill);
     const currentWealth = this.getWealth();
-    if (currentWealth < skill.cost) {
-      alert(`财富不足！需要 ${skill.cost}，当前只有 ${currentWealth}`);
+    if (currentWealth < realTimeCost) {
+      alert(`财富不足！需要 ${realTimeCost}，当前只有 ${currentWealth}`);
       return;
     }
     
     // 解锁技能
     if (this.gameState) {
-      this.gameState.wealth -= skill.cost;
+      this.gameState.wealth -= realTimeCost;
     }
     skill.unlocked = true;
+    this.unlockedSkillsCount++; // ⭐ 增加已解锁计数
+    
+    // ⭐ 更新所有天赋的实时价格
+    this.updateAllSkillCosts();
+    
+    console.log(`\n========================================`);
+    console.log(`🎯 解锁天赋: ${skill.name} (ID: ${skillId})`);
+    console.log(`💰 当前财富: ${this.gameState ? this.gameState.wealth : 'N/A'}`);
+    console.log(`✨ 传播事件新闻将使用特殊模板（如财富<10）`);
+    console.log(`========================================\n`);
     
     // 重新渲染
     this.render();

@@ -1,5 +1,7 @@
 // SpecialEvents.js - 特殊事件系统（可复用框架）
 
+import { canSpawnOpponentInCountry, getOpponentStrengthModifiers } from '../data/difficultyConfig.js';
+
 /**
  * 特殊事件类型定义
  */
@@ -110,6 +112,14 @@ export const SpecialEventTypes = {
         successRate = Math.min(successRate, 0.95); // 上限95%
       }
       
+      // ⭐ 同情天赋：低财富时反击成功率翻倍
+      const compassionSuccessModifier = gameState.getSkillModifier('counterAttackSuccess');
+      if (compassionSuccessModifier > 1) {
+        successRate *= compassionSuccessModifier;
+        successRate = Math.min(successRate, 0.98); // 提高上限到98%
+        console.log(`🌿 同情天赋：反击成功率×${compassionSuccessModifier}`);
+      }
+      
       console.log(`🎯 点击反对者: ${country.id}, 成功率${(successRate*100).toFixed(1)}%${eventData.isInvading ? ' [侵略中]' : ''}`);
       
       // 初始化点击计数器
@@ -137,7 +147,15 @@ export const SpecialEventTypes = {
       }
       
       // 计算伤害
-      const damage = eventData.baseDamage || 30;
+      let damage = eventData.baseDamage || 30;
+      
+      // ⭐ 同情天赋：低财富时反击伤害翻倍
+      const compassionDamageModifier = gameState.getSkillModifier('counterAttackDamage');
+      if (compassionDamageModifier > 1) {
+        damage *= compassionDamageModifier;
+        console.log(`🌿 同情天赋：反击伤害×${compassionDamageModifier} → ${damage}`);
+      }
+      
       eventData.health -= damage;
       
       console.log(`✅ 造成${damage}伤害，剩余${eventData.health}血`);
@@ -152,11 +170,23 @@ export const SpecialEventTypes = {
         // ⭐ 完全摧毁：记录新闻和禁用时间
         console.log(`💀 反对者已消灭！${eventData.philosopherName}`);
         
-        // 记录哲学家被摧毁新闻（级别2）
-        gameState.newsSystem.recordEvent('opponent_destroyed', {
-          countryId: country.id,
-          philosopherName: eventData.philosopherName
-        });
+        // ⭐ 同情天赋：低财富时击杀反对者触发特殊新闻（级别3）
+        const shouldUseLowWealthKill = gameState.skillEffectManager && 
+                                      gameState.skillEffectManager.shouldUseLowWealthKillNews();
+        
+        if (shouldUseLowWealthKill) {
+          gameState.newsSystem.recordEvent('skill_compassion_low_wealth_kill', {
+            countryId: country.id,
+            philosopherName: eventData.philosopherName
+          });
+          console.log(`📰 触发同情天赋击杀新闻 [级别3]: ${eventData.philosopherName}`);
+        } else {
+          // 记录普通哲学家被摧毁新闻（级别2）
+          gameState.newsSystem.recordEvent('opponent_destroyed', {
+            countryId: country.id,
+            philosopherName: eventData.philosopherName
+          });
+        }
         
         // ⭐ 禁用该哲学家100回合
         const philosopher = eventData.philosopher;
@@ -213,6 +243,15 @@ export const SpecialEventTypes = {
       country.believers = Math.max(0, country.believers - believersLost);
       gameState.totalBelievers -= believersLost;
       
+      // ⭐ 如果这次传播导致所有信徒归零，记录最后致命的反对者
+      if (gameState.totalBelievers === 0) {
+        gameState.lastDefeatingPhilosopher = {
+          philosopherName: eventData.philosopherName,
+          countryId: country.id
+        };
+        console.log(`💀 致命一击！${eventData.philosopherName} 在 ${country.id} 消灭了最后的信徒！`);
+      }
+      
       // 标记脱教者
       if (!country.apostates) country.apostates = 0;
       country.apostates += believersLost;
@@ -242,11 +281,23 @@ export const SpecialEventTypes = {
       
       // ⭐ 如果玩家点击失败2次以上，且哲学家最终完成传播，记录opponent_resist（级别2）
       if (eventData.failedClicks && eventData.failedClicks >= 2) {
-        gameState.newsSystem.recordEvent('opponent_resist', {
-          countryId: country.id,
-          philosopherName: eventData.philosopherName
-        });
-        console.log(`📰 触发反对者抵抗新闻 [级别2]: ${eventData.philosopherName} (玩家失败${eventData.failedClicks}次)`);
+        // ⭐ 检查是否应使用高财富虚伪新闻（同情天赋）
+        const shouldUseHypocrisy = gameState.skillEffectManager && 
+                                  gameState.skillEffectManager.shouldUseHypocrisyNews();
+        
+        if (shouldUseHypocrisy) {
+          gameState.newsSystem.recordEvent('skill_compassion_high_wealth_hypocrisy', {
+            countryId: country.id,
+            philosopherName: eventData.philosopherName
+          });
+          console.log(`📰 触发高财富虚伪新闻 [级别3]: ${eventData.philosopherName} (玩家失败${eventData.failedClicks}次)`);
+        } else {
+          gameState.newsSystem.recordEvent('opponent_resist', {
+            countryId: country.id,
+            philosopherName: eventData.philosopherName
+          });
+          console.log(`📰 触发反对者抵抗新闻 [级别2]: ${eventData.philosopherName} (玩家失败${eventData.failedClicks}次)`);
+        }
       } else {
         // 否则只记录普通的opponent_timeout（级别1）
         gameState.newsSystem.recordEvent('opponent_timeout', {
@@ -817,6 +868,10 @@ export class SpecialEventManager {
         if (eventType.id === 'opponent' && gameState) {
           const modifier = gameState.getSkillModifier('opponent_probability');
           probability *= modifier;
+          
+          // ⭐ 应用难度修正
+          const difficultyModifiers = getOpponentStrengthModifiers();
+          probability *= difficultyModifiers.probabilityMultiplier;
         }
         
         console.log(`🎲 检查特殊事件 ${eventType.name} 在 ${country.id} (概率: ${probability})`);
@@ -840,6 +895,14 @@ export class SpecialEventManager {
     const ratio = country.believers / country.population;
     if (eventType.minBelieverRatio && ratio < eventType.minBelieverRatio) return false;
     if (eventType.maxBelieverRatio && ratio >= eventType.maxBelieverRatio) return false;
+    
+    // ⭐ 反对者事件的难度阈值检查
+    if (eventType.id === 'opponent' && this.gameState) {
+      const globalBelieverRatio = this.gameState.totalBelievers / this.gameState.totalPopulation;
+      if (!canSpawnOpponentInCountry(country, globalBelieverRatio)) {
+        return false;
+      }
+    }
     
     // ⭐ 关键修改：检查该国家是否已有任何活跃事件（不限类型）
     // 一个国家同时只能有一个活跃事件，实现真正的互斥
